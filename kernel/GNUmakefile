@@ -41,7 +41,7 @@ MNTDIR := /mnt/bloodmoon
 KERNEL_ENTRY := _start
 
 BLOCKSIZE := 1024
-MEMSIZE := 4G
+MEMSIZE := 8G
 VMEMSIZE := 128
 NUMAFLAGS := \
 -smp cpus=16

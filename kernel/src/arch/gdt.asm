@@ -1,17 +1,15 @@
 [bits 64]
-GLOBAL load_gdt
+GLOBAL _load_gdt
 
-load_gdt:  
+_load_gdt:  
     lgdt [rdi]
     mov ax, 0x10 ; ss kernel
+    mov ss, ax
     mov ds, ax
     mov es, ax
-    mov fs, ax
-    mov ss, ax
-    mov fs, ax
-    mov gs, ax
-    pop rdi
-    mov rax, 0x08 ; cs kernel
+    mov rax, qword .finish
+    push qword 0x8
     push rax
-    push rdi
-    retfq
+    o64 retfq
+.finish:
+    ret

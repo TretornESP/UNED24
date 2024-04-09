@@ -1,7 +1,9 @@
 #include "arch/simd.h"
 #include "io/interrupts.h"
 #include "devices/keyboard/keyboard.h"
+#include "devices/fifo/fifo.h"
 #include "devices/pit/pit.h"
+#include "devices/devices.h"
 #include "util/string.h"
 #include "bootservices/bootservices.h"
 #include "util/printf.h"
@@ -11,6 +13,9 @@
 #include "arch/cpu.h"
 #include "arch/gdt.h"
 #include "debug/shell.h"
+
+#include "drivers/fifo/fifo_dd.h"
+#include "drivers/fifo/fifo_interface.h"
 
 void _start(void) {
     init_simd();
@@ -23,7 +28,19 @@ void _start(void) {
     init_keyboard();
     init_cpus();
     enable_interrupts();
-    
+    init_devices();
+    init_fifo_dd();
+
+    const char * fifoa = new_fifo(100);
+    driver_list();
+    device_list();
+    char buffera[] = "Hola Mundo\0";
+    device_write(fifoa, 11, 0, (uint8_t*)buffera);
+    char bufferb[11];
+    device_read(fifoa, 11, 0, (uint8_t*)bufferb);
+
+    printf("Buffer %s\n", bufferb);
+
     printf("Hey Mundo\n");
 
     char * buffer = (char*)malloc(1000);

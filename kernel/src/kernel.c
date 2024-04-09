@@ -1,6 +1,7 @@
 #include "arch/simd.h"
 #include "io/interrupts.h"
 #include "devices/keyboard/keyboard.h"
+#include "devices/pit/pit.h"
 #include "util/string.h"
 #include "bootservices/bootservices.h"
 #include "util/printf.h"
@@ -17,7 +18,8 @@ void _start(void) {
     init_paging();
     init_heap();
     create_gdt();
-    init_interrupts(0);
+    init_pit(50);
+    init_interrupts();
     init_keyboard();
     init_cpus();
     enable_interrupts();

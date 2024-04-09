@@ -13,6 +13,7 @@
 #include "../util/printf.h"
 #include "../util/panic.h"
 #include "../devices/keyboard/keyboard.h"
+#include "../devices/pit/pit.h"
 
 #define __UNDEFINED_HANDLER  __asm__ ("cli"); (void)frame; panic("Undefined interrupt handler");
 
@@ -103,6 +104,17 @@ void KeyboardInt_Handler(struct cpu_context* ctx, uint8_t cpuid) {
     pic_end_master();
 }
 
+void PitInt_Handler(struct cpu_context* ctx, uint8_t cpuid) {
+    (void)ctx;
+    (void)cpuid;
+    tick();
+    if (requires_preemption()) {
+        //Yield
+    } else if (requires_wakeup()) {
+        wakeup();
+    }
+}
+
 static void interrupt_exception_handler(struct cpu_context* ctx, uint8_t cpu_id) {
     printf("GENERIC EXCEPTION %d ON CPU %d\n", ctx->interrupt_number, cpu_id);
     panic("Exception\n");
@@ -148,7 +160,7 @@ void load_interrupts_for_local_cpu() {
     }
 }
 
-void init_interrupts(uint8_t pit_disable) {
+void init_interrupts() {
     __asm__("cli");
     
     idtr.limit = 256 * sizeof(struct idtdescentry) - 1;
@@ -167,9 +179,10 @@ void init_interrupts(uint8_t pit_disable) {
     dynamic_interrupt_handlers[0xD] = GPFault_Handler;
     dynamic_interrupt_handlers[0xE] = PageFault_Handler;
     dynamic_interrupt_handlers[KBD_IRQ] = KeyboardInt_Handler;
+    dynamic_interrupt_handlers[PIT_IRQ] = PitInt_Handler;
     remap_pic();
 
-    outb(PIC1_DATA, 0xe1);
+    outb(PIC1_DATA, 0xe0);
     outb(PIC2_DATA, 0xef);
     interrupts_ready = 1;
     return;
@@ -198,6 +211,7 @@ void global_interrupt_handler(struct cpu_context* ctx, uint8_t cpu_id) {
     //printf("Interrupt %d received on CPU %d\n", ctx->interrupt_number, cpu_id);
 
     if (handler == 0) {
+        printf("No handler for interrupt %d\n", ctx->interrupt_number);
         panic("No handler for interrupt\n");
     }
 

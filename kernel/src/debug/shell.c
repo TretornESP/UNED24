@@ -1,5 +1,6 @@
 #include "shell.h"
 #include "../devices/keyboard/keyboard.h"
+#include "../devices/pit/pit.h"
 #include "../util/printf.h"
 #include "../util/string.h"
 
@@ -16,6 +17,10 @@ void process_commands() {
         printf("hi: Says hi\n");
     } else if (!strcmp(buffer, "hi")) {
         printf("Hi!\n");
+    } else if (!strcmp(buffer, "sleep")) {
+        printf("Sleeping for 5 seconds\n");
+        sleep(5);
+        printf("Woke up!\n");
     } else {
         printf("Command not found: %s\n", buffer);
     }

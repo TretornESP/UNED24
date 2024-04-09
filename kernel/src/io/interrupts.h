@@ -4,7 +4,7 @@
 
 
 //Modify this to your liking or die trying (DSDT AML STUFF)
-#define PIT_IRQ 0x22
+#define PIT_IRQ 0x20
 #define KBD_IRQ 0x21
 #define PCIA_IRQ 0x2b
 #define SR1_IRQ 0x23
@@ -82,7 +82,7 @@ struct interrupt_frame_error {
     uint64_t ss;
 }__attribute__((packed)); 
 
-void init_interrupts(uint8_t);
+void init_interrupts();
 void enable_interrupts();
 void load_interrupts_for_local_cpu();
 void hook_interrupt(uint8_t interrupt, void* handler);

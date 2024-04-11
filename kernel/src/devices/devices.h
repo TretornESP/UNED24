@@ -45,9 +45,15 @@ void device_list();
 char * device_create(void * device_control_structure, uint8_t major, uint64_t id);
 void device_destroy(char * device_name);
 
+//Iterador
+struct device* get_device_head();
+uint32_t get_device_count();
+uint32_t get_device_count_by_major(uint8_t major);
+struct device* get_next_device(struct device* dev);
+
 //Operaciones de control R|W|IOCTL
-//struct device* device_search(const char* n;ame)
-//uint8_t device_identify(const char* name, char* driver_name);
+struct device* device_search(const char* name);
+uint8_t device_identify(const char* name, char* driver_name);
 uint64_t device_read(const char * name, uint64_t size, uint64_t offset, uint8_t * buffer);
 uint64_t device_write(const char * name, uint64_t size, uint64_t offset, uint8_t * buffer);
 uint64_t device_ioctl(const char * name, uint64_t op, void * buffer);

@@ -34,12 +34,17 @@
 
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+//Itoa
+char* itoa(int64_t value, int base);
+//Atoi
+int64_t atoi(const char * str);
 
 /**
  * Output a character to a custom device like UART, used by the printf() function

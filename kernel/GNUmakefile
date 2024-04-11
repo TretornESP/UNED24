@@ -6,6 +6,7 @@ override IMG_RAW := raw.img
 override LIMINECFG := limine.cfg
 override GDBCFG := debug.gdb
 override VMNAME := bloodmoon
+override WDIR := bloodmoondata
 
 # It is highly recommended to use a custom built cross toolchain to build a kernel.
 # We are only using "cc" as a placeholder here. It may work by using
@@ -16,17 +17,17 @@ LD := /usr/bin/ld
 LMN := limine/limine-deploy.exe
 BOOTEFI := ./limine/BOOTX64.EFI
 ASMC := nasm
+JAIL = 4096M # This is in case qemu crashes windows!
 
 # This are specific to my setup, please modify them!!!!
 #########################DESKTOP SETTINGS#################################
-#QEMU := "/mnt/c/Program Files/qemu/qemu-system-x86_64.exe"
+QEMU := "/mnt/c/Program Files/qemu/qemu-system-x86_64.exe"
 #GDB := "/mnt/c/Users/85562/crossgdb/gdb-12.1/gdb/gdb"
-#WSLHOSTIP := $(shell ipconfig.exe | grep 'vEthernet (WSL)' -a -A4 | tail -n1 | cut -d":" -f 2 | tail -n1 | sed -e 's/\s*//g')
-
+WSLHOSTIP := $(shell ipconfig.exe | grep 'WSL' -a -A4 | tail -n1 | cut -d":" -f 2 | tail -n1 | sed -e 's/\s*//g')
 #########################LAPTOP SETTINGS###################################
-QEMU := qemu-system-x86_64
+#QEMU := qemu-system-x86_64
 GDB := gdb
-WSLHOSTIP := 127.0.0.1
+#WSLHOSTIP := 127.0.0.1
 ###########################################################################
 VBOXMANAGE := "/mnt/c/Program Files/Oracle/VirtualBox/VBoxManage.exe"
 VBOXHEADLESS := "/mnt/c/Program Files/Oracle/VirtualBox/VBoxHeadless.exe"
@@ -37,14 +38,13 @@ VBOXCOM4PORT := 4444
 CMDNEWSCREEN := cmd.exe /c start cmd /c wsl -e
 MNTDIR := /mnt/bloodmoon
 
-
 KERNEL_ENTRY := _start
 
 BLOCKSIZE := 1024
-MEMSIZE := 8G
+MEMSIZE := 4G
 VMEMSIZE := 128
 NUMAFLAGS := \
--smp cpus=16
+-smp cpus=1
 #-object memory-backend-ram,size=1G,id=mem0 \
 #-object memory-backend-ram,size=1G,id=mem1 \
 #-object memory-backend-ram,size=1G,id=mem2 \
@@ -61,10 +61,10 @@ NUMAFLAGS := \
 #-numa dist,src=1,dst=3,val=20
 
 QFLAGS ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -serial telnet::4444,server,nowait -cdrom 
-#-netdev tap,id=mynet0,ifname=tap,script=no,downscript=no -serial stdio -device e1000,netdev=mynet0,mac=51:52:53:54:55:56 
-QFLAGSEXP ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -drive if=pflash,format=raw,unit=0,file=./OVMFbin/OVMF_CODE-pure-efi.fd,readonly=on -drive if=pflash,format=raw,unit=1,file=./OVMFbin/OVMF_VARS-pure-efi.fd -drive file=
+QFLAGSEXP ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -drive if=pflash,format=raw,unit=0,file=./OVMFbin/OVMF_CODE-pure-efi.fd,readonly=on -drive if=pflash,format=raw,unit=1,file=./OVMFbin/OVMF_VARS-pure-efi.fd -drive file=
+QWFLAGSEXP ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -drive if=pflash,format=raw,unit=0,file=$(WINDIRECTORY)/OVMF_CODE-pure-efi.fd,readonly=on -drive if=pflash,format=raw,unit=1,file=$(WINDIRECTORY)/OVMF_VARS-pure-efi.fd -drive file=
 
-CFLAGS ?= -O2 -g -Wall -Wextra -pipe -std=c11
+CFLAGS ?= -O2 -g -Wall -Wextra -pipe -Wno-packed-bitfield-compat -std=c11
 NASMFLAGS ?= -F dwarf -g
 LDFLAGS ?=
 CPPFLAGS ?=
@@ -112,8 +112,6 @@ override CFLAGS +=       \
     -I.                  \
     -std=c11             \
     -ffreestanding       \
-    -fno-stack-protector \
-    -fno-stack-check     \
     -fno-pie             \
     -fno-pic             \
     -m64                 \
@@ -235,14 +233,18 @@ clean:
 	@rm -f $(ISODIR)/$(VDI)
 
 setup:
+	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
 	@mkdir -p $(BUILDDIR)
 	@mkdir -p $(OBJDIR)
 	@mkdir -p $(ISOBUILDDIR)
 	@mkdir -p $(PROGSBUILDDIR)
 	@mkdir -p $(ISODIR)
+	@mkdir -p /mnt/c/Users/$(WINUSER)/$(WDIR)
 	@dd if=/dev/zero of=$(ISODIR)/$(IMG_RAW) bs=4096 count=102400
 	@git clone $(LMNREPO) --branch=$(LMNBRCH) --depth=1
 	@cp -v $(LMNDIR)/limine.sys $(LMNDIR)/limine-cd.bin $(LMNDIR)/limine-cd-efi.bin $(ISOBUILDDIR)
+	@cp $(ABSDIR)/OVMFbin/OVMF_CODE-pure-efi.fd /mnt/c/Users/$(WINUSER)/$(WDIR)/OVMF_CODE-pure-efi.fd
+	@cp $(ABSDIR)/OVMFbin/OVMF_VARS-pure-efi.fd /mnt/c/Users/$(WINUSER)/$(WDIR)/OVMF_VARS-pure-efi.fd
 	@echo file $(BUILDDIR)/$(KERNEL) > debug.gdb
 	@echo target remote $(WSLHOSTIP):$(GDBPORT) >> debug.gdb
 	@echo set disassembly-flavor intel >> debug.gdb
@@ -250,11 +252,12 @@ setup:
 	@echo c >> debug.gdb
 
 cleansetup:
+	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
 	@rm -rf $(BUILDHOME)
 	@rm -f debug.gdb
 	@rm -rf $(LMNDIR)
 	@rm -rf $(PROGSBUILDDIR)
-
+	@rm -rf /mnt/c/Users/$(WINUSER)/$(WDIR)
 buildimg:
 	@cp -v limine.cfg $(BUILDDIR)/$(KERNEL) $(ISOBUILDDIR)
 	@xorriso -as mkisofs -b limine-cd.bin \
@@ -328,7 +331,13 @@ run:
 	$(QEMU) $(QFLAGS) $(ISODIR)/$(ISO)
 
 run_exp:
-	$(QEMU) $(QFLAGSEXP)$(ISODIR)/$(IMG)
+	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
+	$(eval WINDIRECTORY := C:/Users/$(WINUSER)/$(WDIR))
+	@echo "WINDIRECTORY: $(WINDIRECTORY)"
+	@echo "Copying files to Windows directory..."
+	@cp $(ISODIR)/$(IMG) /mnt/c/Users/$(WINUSER)/$(WDIR)/$(IMG)
+	@ls -l /mnt/c/Users/$(WINUSER)/$(WDIR)
+	$(QEMU) $(QWFLAGSEXP)$(WINDIRECTORY)/$(IMG)
 
 gpt:
 	@make kernel
@@ -361,6 +370,8 @@ cprogs:
 .PHONY: progs
 
 debugpt:
+	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
+	$(eval WINDIRECTORY := C:/Users/$(WINUSER)/$(WDIR))
 	@make kernel
 	@echo "Building GPT..."
 #This is required to be before buildimggpt!
@@ -369,7 +380,11 @@ debugpt:
 # Due to eval weird behaviour
 	@make buildimggpt
 	@echo "Running GPT QEMU..."
-	$(CMDNEWSCREEN) $(GDB) $(GDBFLAGS) & $(QEMU) -S -s $(QFLAGSEXP)$(ISODIR)/$(IMG)
+	@echo "WINDIRECTORY: $(WINDIRECTORY)"
+	@echo "Copying files to Windows directory..."
+	@cp $(ISODIR)/$(IMG) /mnt/c/Users/$(WINUSER)/$(WDIR)/$(IMG)
+	@ls -l /mnt/c/Users/$(WINUSER)/$(WDIR)
+	$(CMDNEWSCREEN) $(GDB) $(GDBFLAGS) & $(QEMU) -S -s $(QWFLAGSEXP)$(WINDIRECTORY)/$(IMG)
 
 debuge:
 	@make kernel

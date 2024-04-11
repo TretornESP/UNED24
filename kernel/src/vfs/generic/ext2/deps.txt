@@ -1,0 +1,15 @@
+<stdio.h>
+    printf
+<stdlib.h>
+    malloc
+    free
+<string.h>
+    memcpy
+    memset
+<time.h>
+    time
+    strftime
+    localtime
+    
+#include "../fused/primitives.h"
+#include "../fused/auxiliary.h"

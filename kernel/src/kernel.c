@@ -16,6 +16,14 @@
 
 #include "drivers/fifo/fifo_dd.h"
 #include "drivers/fifo/fifo_interface.h"
+#include "drivers/disk/disk_dd.h"
+#include "drivers/disk/disk_interface.h"
+
+#include "vfs/vfs.h"
+#include "vfs/vfs_interface.h"
+#include "vfs/generic/fat32/generic_f32.h"
+#include "vfs/generic/ext2/generic_ext2.h"
+#include "vfs/generic/fifo/generic_fifo.h"
 
 void _start(void) {
     init_simd();
@@ -30,8 +38,13 @@ void _start(void) {
     enable_interrupts();
     init_devices();
     init_fifo_dd();
+    init_drive_dd();
+    register_filesystem(fat32_registrar);
+    register_filesystem(ext2_registrar);
+    register_filesystem(fifo_registrar);
+    probe_fs();
 
-    const char * fifoa = new_fifo(100);
+    const char * fifoa = create_fifo(100);
     driver_list();
     device_list();
     char buffera[] = "Hola Mundo\0";

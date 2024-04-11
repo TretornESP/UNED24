@@ -1,6 +1,11 @@
 {
     "files.associations": {
         "keyboard.h": "c",
-        "io.h": "c"
+        "io.h": "c",
+        "panic.h": "c",
+        "generic_fifo.h": "c",
+        "fifo.h": "c",
+        "fifo_interface.h": "c",
+        "stdint.h": "c"
     }
 }

@@ -117,16 +117,56 @@
 #include <float.h>
 #endif
 
+#define BUFFERSIZE 128
+char boot_conversor_buffer[BUFFERSIZE] = {0};
 
 // output function type
 typedef void (*out_fct_type)(char character, void* buffer, size_t idx, size_t maxlen);
-
 
 // wrapper (used as buffer) for output function type
 typedef struct {
   void  (*fct)(char character, void* arg);
   void* arg;
 } out_fct_wrap_type;
+
+char* itoa(int64_t value, int base) {
+    // check that the base if valid
+    for (int i = 0; i < BUFFERSIZE; i++) {
+        boot_conversor_buffer[i] = 0;
+    }
+    if (base < 2 || base > 36) { *boot_conversor_buffer = '\0'; return boot_conversor_buffer; }
+
+    char* ptr = boot_conversor_buffer, *ptr1 = boot_conversor_buffer, tmp_char;
+    int64_t tmp_value;
+
+    do {
+        tmp_value = value;
+        value /= base;
+        *ptr++ = "zyxwvutsrqponmlkjihgfedcba9876543210123456789abcdefghijklmnopqrstuvwxyz" [35 + (tmp_value - value * base)];
+    } while ( value );
+
+    // Apply negative sign
+    if (tmp_value < 0) *ptr++ = '-';
+    *ptr-- = '\0';
+    while(ptr1 < ptr) {
+        tmp_char = *ptr;
+        *ptr--= *ptr1;
+        *ptr1++ = tmp_char;
+    }
+    return boot_conversor_buffer;
+}
+
+int64_t atoi(const char * str) {
+    int64_t res = 0; // Initialize result
+
+    // Iterate through all characters of input string and
+    // update result
+    for (int i = 0; str[i] != '\0'; ++i)
+        res = res*10 + str[i] - '0';
+
+    // return result.
+    return res;
+}
 
 
 // internal buffer output

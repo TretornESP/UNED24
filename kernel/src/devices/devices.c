@@ -1,4 +1,6 @@
 #include "devices.h"
+#include "acpi/acpi.h"
+#include "pci/pci.h"
 #include "../memory/heap.h"
 #include "../memory/memory.h"
 #include "../util/string.h"
@@ -94,6 +96,39 @@ void device_list() {
     }
 }
 
+struct device* get_device_head() {
+    if (device_header->valid)
+        return device_header;
+    return (struct device*)0;
+}
+
+uint32_t get_device_count() {
+    uint32_t count = 0;
+    struct device* dev = device_header;
+    while (dev->valid) {
+        count++;
+        dev = dev->next;
+    }
+    return count;
+}
+
+uint32_t get_device_count_by_major(uint8_t major) {
+    uint32_t count = 0;
+    struct device* dev = device_header;
+    while (dev->valid) {
+        if ((uint8_t)(dev->bc << 7 | dev->major) == major)
+            count++;
+        dev = dev->next;
+    }
+    return count;
+}
+
+struct device* get_next_device(struct device* dev) {
+    if (dev->next->valid)
+        return dev->next;
+    return (struct device*)0;
+}
+
 char * device_create(void * device_control_structure, uint8_t major, uint64_t id) {
     
     char name[32];
@@ -140,14 +175,51 @@ void device_destroy(char * device_name) {
     }
 }
 
+char* insert_device_cb(void* device_control_structure, uint8_t major, uint64_t id) {
+    return device_create(device_control_structure, major, id);
+}
+
 void init_devices() {
     device_header = (struct device*)request_page();
     memset(device_header, 0, sizeof(struct device));
+
+    struct mcfg_header* mcfg = get_acpi_mcfg();
+    if (mcfg != 0) {
+        register_pci(mcfg, insert_device_cb);
+    }
 }
 
 //Operaciones de control R|W|IOCTL
-//struct device* device_search(const char* name);
-//uint8_t device_identify(const char* name, char* driver_name);
+struct device* device_search(const char* device) {
+    struct device* dev = device_header;
+    while (dev->valid) {
+        if (memcmp((void*)dev->name, (void*)device, strlen(device)) == 0) {
+            return dev;
+        }
+        dev = dev->next;
+    }
+    
+    return (struct device*)0;
+}
+uint8_t device_identify(const char* device, char* driver_name) {
+    struct device* dev = device_header;
+    while (dev->valid) {
+        if (memcmp((void*)dev->name, (void*)device, strlen(device)) == 0) {
+            if (dev->bc == 0) {
+                if (!block_device_drivers[dev->major].registered)
+                    return 0;
+                return !strcmp(block_device_drivers[dev->major].name, driver_name);
+            } else {
+                if (!char_device_drivers[dev->major].registered)
+                    return 0;
+                return !strcmp(char_device_drivers[dev->major].name, driver_name);
+            }
+        }
+        dev = dev->next;
+    }
+
+    return 0;
+}
 
 uint64_t device_write(const char * name, uint64_t size, uint64_t offset, uint8_t * buffer) {
     struct device* dev = device_header;

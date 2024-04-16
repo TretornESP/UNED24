@@ -5,21 +5,30 @@
 #include "../devices/pit/pit.h"
 #include "../util/printf.h"
 #include "../util/string.h"
+#include "../vfs/vfs.h"
+#include "../vfs/vfs_interface.h"
 
-#define PROMPT "$"
 #define MAX_BUFFER_SIZE 256
 char buffer[MAX_BUFFER_SIZE];
 int buffer_index = 0;
+const char root[] = "hdap2";
+char cwd[256] = {0};
+char workpath[256] = {0};
+char devno[32] = {0};
 
 struct command {
     char keyword[32];
     void (*handler)(int argc, char* argv[]);
 };
 
+void promt() {
+    printf("root@unedos:%s$ ", cwd);
+}
+
 void help(int argc, char* argv[]);
 
 //List of commands
-void read(int argc, char* argv[]) {
+void readd(int argc, char* argv[]) {
     if (argc < 3) {
         printf("Usage: read <device> <size> [offset]\n");
         return;
@@ -60,7 +69,7 @@ void read(int argc, char* argv[]) {
     free(buffer);
 }
 
-void write(int argc, char* argv[]) {
+void writed(int argc, char* argv[]) {
     if (argc < 3) {
         printf("Usage: write <device> <text>\n");
         return;
@@ -107,10 +116,236 @@ void hi(int argc, char* argv[]) {
     printf("Hello\n");
 }
 
+void lsdsk(int argc, char* argv[]) {
+    vfs_lsdisk();
+}
+
+//This function receives a relative path and returns an absolute path
+void apply_cd(char* path) {
+    memset(workpath, 0, 256);
+    if (path[0] == '/') {
+        strcpy(workpath, path+1);
+    } else {
+        strcpy(workpath, cwd);
+        strcat(workpath, "/");
+        strcat(workpath, path);
+    }
+}
+
+void ls(int argc, char*argv[]) {
+    if (argc < 2) {
+        printf("Lists the contents of a directory\n");
+        printf("Usage: ls <directory>\n");
+        return;
+    }
+
+    apply_cd(argv[1]);
+    printf("Listing directory %s\n", workpath);
+    vfs_dir_list(workpath);
+}
+
+void read(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Reads n characters of a file\n");
+        printf("Usage: read <file> [size] [offset]\n");
+        return;
+    }
+
+    uint64_t size = 0;
+    uint64_t offset = 0;
+
+    apply_cd(argv[1]);
+    int fd = vfs_file_open(workpath, 0, 0);
+    if (fd < 0) {
+        printf("Could not open file %s\n", workpath);
+        return;
+    }
+
+    if (argc > 3) {
+        offset = atou64(argv[3]);
+    }
+
+    if (argc > 2) {
+        size = atou64(argv[2]);
+    } else {
+        vfs_file_seek(fd, 0, 0x2); //SEEK_END
+        size = vfs_file_tell(fd);
+        vfs_file_seek(fd, 0, 0x0); //SEEK_SET
+    }
+
+    printf("Reading %d bytes from %s offset: %d\n", size, workpath, offset);
+
+    vfs_file_seek(fd, offset, 0x0); //SEEK_SET
+    uint8_t* buf = malloc(size);
+    memset(buf, 0, size);
+    vfs_file_read(fd, buf, size);
+    vfs_file_close(fd);
+
+    printf("%s\n", buf);
+    free(buf);
+}
+
+void write(int argc, char* argv[]) {
+    if (argc < 3) {
+        printf("Writes n characters to a file\n");
+        printf("Usage: write <file>[:offset] <text...>\n");
+        return;
+    }
+
+    uint64_t offset = 0;
+    //Do not use strchr
+    for (uint64_t i = 0; i < strlen(argv[1]); i++) {
+        if (argv[1][i] == ':') {
+            argv[1][i] = '\0';
+            offset = atou64(argv[1] + i + 1);
+            break;
+        }
+    }
+
+    apply_cd(argv[1]);
+    
+    int fd = vfs_file_open(workpath, 0, 0);
+    if (fd < 0) {
+        printf("Could not open file %s\n", workpath);
+        return;
+    }
+
+    printf("Writing to %s offset: %d\n", workpath, offset);
+    printf("Text: ");
+    for (int i = 2; i < argc; i++) {
+        printf("%s ", argv[i]);
+    }
+    printf("\n");
+
+    vfs_file_seek(fd, offset, 0x0); //SEEK_SET
+    for (int i = 2; i < argc; i++) {
+        vfs_file_write(fd, argv[i], strlen(argv[i]));
+        vfs_file_write(fd, " ", 1);
+    }
+
+    vfs_file_close(fd);
+}
+
+void create(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Creates a file\n");
+        printf("Usage: create <file>\n");
+        return;
+    }
+
+    apply_cd(argv[1]);
+    int result = vfs_file_creat(workpath, 0);
+    if (result < 0) {
+        printf("Could not create file %s\n", workpath);
+    }
+}
+
+void delete(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Deletes a file\n");
+        printf("Usage: delete <file> [-force]\n");
+        return;
+    }
+
+    uint8_t force = 0;
+    if (argc > 2) {
+        if (strcmp(argv[2], "-force") == 0)
+            force = 1;
+    }
+
+    apply_cd(argv[1]);
+    int result = vfs_remove(workpath, force);
+    if (result < 0) {
+        printf("Could not delete file %s\n", workpath);
+    }
+}
+
+void mkdir(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Creates a directory\n");
+        printf("Usage: mkdir <dir>\n");
+        return;
+    }
+
+    apply_cd(argv[1]);
+    int result = vfs_mkdir(workpath, 0);
+    if (result < 0) {
+        printf("Could not create directory %s\n", workpath);
+    }
+}
+
+void normalizePath(char *path) {
+    if (path == NULL || strlen(path) == 0) {
+        return;
+    }
+
+    char normalizedPath[strlen(path) + 1];
+    normalizedPath[0] = '\0';  // Initialize the normalizedPath
+
+    char *token = strtok(path, "/");
+    int depth = 0;
+
+    while (token != NULL) {
+        if (strcmp(token, "..") == 0) {
+            if (depth > 0) {
+                char *lastSlash = normalizedPath + strlen(normalizedPath) - 1;
+                while (lastSlash > normalizedPath && *lastSlash != '/') {
+                    lastSlash--;
+                }
+                if (lastSlash != normalizedPath) {
+                    *lastSlash = '\0';
+                    depth--;
+                }
+            }
+        } else if (strcmp(token, ".") != 0 && strlen(token) > 0) {
+            if (depth > 0) {
+                strcat(normalizedPath, "/");
+            }
+            strcat(normalizedPath, token);
+            depth++;
+        }
+
+        token = strtok(NULL, "/");
+    }
+
+    if (strlen(normalizedPath) > 0 && normalizedPath[strlen(normalizedPath) - 1] == '/') {
+        normalizedPath[strlen(normalizedPath) - 1] = '\0';
+    }
+
+    strcpy(path, normalizedPath);
+}
+
+void cd(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Changes the current directory\n");
+        printf("Usage: cd <dir>\n");
+        return;
+    }
+
+    apply_cd(argv[1]);
+    memset(cwd, 0, 256);
+    strcpy(cwd, workpath);
+    //Make sure cwd ends in \0
+    cwd[strlen(cwd)] = '\0';
+    normalizePath(cwd);
+}
+
 struct command cmdlist[] = {
     {
         .keyword = "hi",
         .handler = hi
+    },
+    {
+        .keyword = "readd",
+        .handler = readd
+    },
+    {
+        .keyword = "writed",
+        .handler = writed
+    },
+    {
+        .keyword = "cd",
+        .handler = cd
     },
     {
         .keyword = "read",
@@ -131,6 +366,34 @@ struct command cmdlist[] = {
     {
         .keyword = "help",
         .handler = help
+    },
+    {
+        .keyword = "lsdsk",
+        .handler = lsdsk
+    },
+    {
+        .keyword = "ls",
+        .handler = ls
+    },
+    {
+        .keyword = "read",
+        .handler = read
+    },
+    {
+        .keyword = "write",
+        .handler = write
+    },
+    {
+        .keyword = "create",
+        .handler = create
+    },
+    {
+        .keyword = "delete",
+        .handler = delete
+    },
+    {
+        .keyword = "mkdir",
+        .handler = mkdir
     }
 };
 
@@ -176,14 +439,14 @@ void process_commands() {
         }
     }
 
-    printf(PROMPT);
+    promt();
 }
 
 void received_keypress(uint8_t c) {
     if (c == Enter) {
         buffer[buffer_index] = 0;
         if (buffer_index == 0) {
-            printf(PROMPT);
+            promt();
             return;
         }
         process_commands();
@@ -202,5 +465,5 @@ void received_keypress(uint8_t c) {
 
 void run_shell() {
     register_callback(received_keypress);
-    printf(PROMPT);
+    promt();
 }

@@ -22,4 +22,5 @@ char translate(uint8_t, uint8_t);
 void handle_keyboard(uint8_t);
 void halt_until_enter();
 void register_callback(void (*callback)(uint8_t));
+void unregister_callback();
 #endif

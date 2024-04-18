@@ -18,6 +18,25 @@ uint8_t ext2_delete_dentry(struct ext2_partition* partition, const char * path) 
     char * name;
     char * parent_path;
     if (!ext2_path_to_parent_and_name(path, &parent_path, &name)) return 1;
+    if (strlen(name) == 0) {
+        EXT2_ERROR("Invalid path %s", path);
+        return 1;
+    }
+
+    if (parent_path == 0) {
+        EXT2_ERROR("Invalid parent path %s", path);
+        return 1;
+    }
+
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+        EXT2_ERROR("Invalid path %s", path);
+        return 1;
+    }
+
+    if (strcmp(parent_path, ".") == 0 || strcmp(parent_path, "..") == 0) {
+        EXT2_ERROR("Invalid parent path %s", parent_path);
+        return 1;
+    }
     
     uint32_t block_size = 1024 << (((struct ext2_superblock*)partition->sb)->s_log_block_size);
 

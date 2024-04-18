@@ -90,6 +90,10 @@ void register_callback(void (*callback)(uint8_t)) {
     keyboard_callback = callback;
 }
 
+void unregister_callback() {
+    keyboard_callback = 0;
+}
+
 void halt_until_enter() {
     keyboard->intro_buffered = 0;
     printf("Press enter to continue...");

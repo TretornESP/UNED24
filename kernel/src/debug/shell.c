@@ -5,8 +5,10 @@
 #include "../devices/pit/pit.h"
 #include "../util/printf.h"
 #include "../util/string.h"
+#include "../scheduling/scheduler.h"
 #include "../vfs/vfs.h"
 #include "../vfs/vfs_interface.h"
+#include "../vfs/generic/ext2/ext2.h"
 
 #define MAX_BUFFER_SIZE 256
 char buffer[MAX_BUFFER_SIZE];
@@ -15,6 +17,9 @@ const char root[] = "hdap2";
 char cwd[256] = {0};
 char workpath[256] = {0};
 char devno[32] = {0};
+
+void handler(void* ttyb, uint8_t event);
+void received_keypress(uint8_t c);
 
 struct command {
     char keyword[32];
@@ -67,6 +72,10 @@ void readd(int argc, char* argv[]) {
     printf("\n");
 
     free(buffer);
+}
+
+void ext2st(int argc, char* argv[]) {
+    ext2_stacktrace();
 }
 
 void writed(int argc, char* argv[]) {
@@ -142,6 +151,49 @@ void ls(int argc, char*argv[]) {
     apply_cd(argv[1]);
     printf("Listing directory %s\n", workpath);
     vfs_dir_list(workpath);
+}
+
+void attach(int argc, char* argv[]) {
+    if (argc < 2) {
+        printf("Attaches a device\n");
+        printf("Usage: attach <device>\n");
+        return;
+    }
+
+    if (device_search(argv[1]) == 0) {
+        printf("Could not find device %s, to go default use detach cmd\n", argv[1]);
+        return;
+    }
+
+    char * current_tty = get_current_tty();
+
+    if ((current_tty == 0) || !strcmp(current_tty, "default")) {
+        unregister_callback();
+    } else {
+        device_ioctl(current_tty, 0x2, handler); //REMOVE SUBSCRIBER
+    }
+
+    memset(devno, 0, 32);
+    strncpy(devno, argv[1], strlen(argv[1]));
+    device_ioctl(argv[1], 0x1, handler); //ADD SUBSCRIBER
+    set_current_tty(argv[1]);
+
+    printf("\n");
+    promt();
+}
+
+void detach(int argc, char* argv[]) {
+
+    if (device_search(devno) != 0) {
+        device_ioctl(devno, 0x2, handler); //REMOVE SUBSCRIBER
+    }
+
+    memset(devno, 0, 32);
+    register_callback(received_keypress);
+    set_current_tty("default");
+
+    printf("\n");
+    promt();
 }
 
 void read(int argc, char* argv[]) {
@@ -340,6 +392,10 @@ struct command cmdlist[] = {
         .handler = readd
     },
     {
+        .keyword = "ext2st",
+        .handler = ext2st
+    },
+    {
         .keyword = "writed",
         .handler = writed
     },
@@ -354,6 +410,14 @@ struct command cmdlist[] = {
     {
         .keyword = "write",
         .handler = write
+    },
+    {
+        .keyword = "attach",
+        .handler = attach
+    },
+    {
+        .keyword = "detach",
+        .handler = detach
     },
     {
         .keyword = "lsdev",
@@ -440,6 +504,38 @@ void process_commands() {
     }
 
     promt();
+}
+
+void handler(void* ttyb, uint8_t event) {
+    (void)ttyb;
+    switch (event) {
+        case 0x1: { //TTY_INB
+            char cmd[1024] = {0};
+            int read = device_read(devno, 1024, 0, (uint8_t*)cmd);
+            if (read > 0) {
+                //Convert string to array of words
+                char* args[32] = {0};
+                int argc = 0;
+                char* tok = strtok(cmd, " ");
+                while (tok != 0) {
+                    args[argc] = tok;
+                    argc++;
+                    tok = strtok(0, " ");
+                }
+
+                for (uint32_t i = 0; i < sizeof(cmdlist) / sizeof(struct command); i++) {
+                    if (strcmp(cmdlist[i].keyword, args[0]) == 0) {
+                        cmdlist[i].handler(argc, args);
+                        break;
+                    }
+                }
+            }
+
+            promt();
+        }
+        default:
+            break;
+    }
 }
 
 void received_keypress(uint8_t c) {

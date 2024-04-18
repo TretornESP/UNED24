@@ -1,6 +1,7 @@
 #include "devices.h"
 #include "acpi/acpi.h"
 #include "pci/pci.h"
+#include "comm/comm.h"
 #include "../memory/heap.h"
 #include "../memory/memory.h"
 #include "../util/string.h"
@@ -34,7 +35,7 @@ const char* device_identifiers[] = {
     "net", // 11
     "fb", // 12
     "none", // 13 
-    [0x8d] = "magic", // 80
+    [0x8d] = "serial", // 80
     [0x8e] = "fifo",
     [0x8f] = "kbd", // 81
 };

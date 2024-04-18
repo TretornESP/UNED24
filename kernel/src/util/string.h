@@ -5,7 +5,7 @@
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 #pragma GCC diagnostic ignored "-Wreturn-type"
 #include <stdint.h>
-#include "bool.h"
+#include <stdbool.h>
 typedef uint64_t size_t;
 
 #ifndef __FUNCTION_NAME__

@@ -205,6 +205,26 @@ uint8_t ext2_create_file(struct ext2_partition * partition, const char* path, ui
         return EXT2_RESULT_ERROR;
     }
 
+    if (name == 0) {
+        EXT2_WARN("Invalid path");
+        return EXT2_RESULT_ERROR;
+    }
+
+    if (parent_path == 0) {
+        EXT2_WARN("Invalid parent path");
+        return EXT2_RESULT_ERROR;
+    }
+
+    if (strlen(name) == 0) {
+        EXT2_WARN("Invalid path");
+        return EXT2_RESULT_ERROR;
+    }
+
+    if (strlen(parent_path) == 0) {
+        EXT2_WARN("Invalid parent path");
+        return EXT2_RESULT_ERROR;
+    }
+
     uint32_t parent_inode_index = ext2_path_to_inode(partition, parent_path);
     if (!parent_inode_index) {
         EXT2_WARN("Parent directory doesn't exist");
@@ -212,8 +232,13 @@ uint8_t ext2_create_file(struct ext2_partition * partition, const char* path, ui
     }
 
     struct ext2_inode_descriptor_generic * parent_inode = (struct ext2_inode_descriptor_generic *)ext2_read_inode(partition, parent_inode_index);
+    if (parent_inode == 0) {
+        EXT2_ERROR("Failed to read parent inode");
+        return EXT2_RESULT_ERROR;
+    }
+    
     if (!(parent_inode->i_mode & INODE_TYPE_DIR)) {
-        EXT2_WARN("Parent inode is not a directory");
+        EXT2_WARN("Parent inode for path %s is not a directory: %d", parent_path, parent_inode->i_mode);
         return EXT2_RESULT_ERROR;
     }
 

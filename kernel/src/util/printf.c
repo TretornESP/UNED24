@@ -33,7 +33,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "../bootservices/bootservices.h"
-#include "../scheduling/scheduler.h"
+#include "../sched/scheduler.h"
 #include "../devices/devices.h"
 #include "string.h"
 #include "printf.h"

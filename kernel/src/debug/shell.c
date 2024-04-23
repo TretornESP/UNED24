@@ -5,7 +5,7 @@
 #include "../devices/pit/pit.h"
 #include "../util/printf.h"
 #include "../util/string.h"
-#include "../scheduling/scheduler.h"
+#include "../sched/scheduler.h"
 #include "../vfs/vfs.h"
 #include "../vfs/vfs_interface.h"
 #include "../vfs/generic/ext2/ext2.h"
@@ -559,7 +559,13 @@ void received_keypress(uint8_t c) {
     }
 }
 
+void kill_handler(int signal, void* data, uint64_t data_size) {
+    printf("Someone is being nasty!\n");
+}
+
 void run_shell() {
     register_callback(received_keypress);
+    subscribe_signal(SIGKILL, kill_handler);
     promt();
+    process_loop();
 }

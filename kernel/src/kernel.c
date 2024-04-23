@@ -32,6 +32,24 @@
 #include "drivers/tty/tty_dd.h"
 #include "drivers/tty/tty_interface.h"
 
+#include "sched/scheduler.h"
+#include "proc/process.h"
+
+void nasty_handler(void* ttyb, uint8_t event) {
+    struct task * current = get_current_task();
+    add_signal(current->pid, SIGKILL, NULL, 0);
+}
+
+void nasty_dude(const char * tty) {
+    struct device * dev = device_search(tty);
+    if(dev == NULL) {
+        printf("Device not found\n");
+        return;
+    }
+
+    device_ioctl(tty, 0x1, nasty_handler);
+}
+
 void _start(void) {
     init_simd();
     init_memory();
@@ -53,6 +71,13 @@ void _start(void) {
     register_filesystem(fifo_registrar);
     register_comm();
     probe_fs();
-    run_shell();
+    init_scheduler();
+
+    nasty_dude("ttyb");
+
+    struct task * task = create_task((void*)run_shell, "default");   
+    add_task(task);
+
+    go(0);
     while(1);
 }

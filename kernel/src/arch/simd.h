@@ -1,5 +1,8 @@
 #ifndef _SIMD_H
 #define _SIMD_H
+
+#define SIMD_CONTEXT_SIZE 512
+
 #define CR0_MONITOR_COPROC (1 << 1)
 #define CR0_EM (1 << 2)
 #define CR0_NUMERIC_ERROR (1 << 5)

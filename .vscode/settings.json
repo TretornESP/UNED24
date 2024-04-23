@@ -4,6 +4,7 @@
         "stdint.h": "c",
         "paging.h": "c",
         "keyboard.h": "c",
-        "heap.h": "c"
+        "heap.h": "c",
+        "process.h": "c"
     }
 }

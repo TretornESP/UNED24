@@ -2,6 +2,8 @@
 #include "../../util/printf.h"
 #include "../../io/io.h"
 #include "../../io/interrupts.h"
+#include "../../devices/pit/pit.h"
+#include "../../sched/scheduler.h"
 #include "../../bootservices/bootservices.h"
 
 struct pit pit;
@@ -107,7 +109,7 @@ void sleep_ticks(uint64_t ticks) {
     uint64_t start_time = pit.timer_ticks;
     __asm__("sti");
     while (pit.timer_ticks - start_time < ticks) {
-        //Yield!
+        yield();
     }
     __asm__("cli");
 }

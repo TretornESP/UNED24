@@ -12,6 +12,7 @@
 #include "../util/string.h"
 #include "../util/printf.h"
 #include "../util/panic.h"
+#include "../sched/scheduler.h"
 #include "../devices/keyboard/keyboard.h"
 #include "../devices/pit/pit.h"
 
@@ -109,7 +110,7 @@ void PitInt_Handler(struct cpu_context* ctx, uint8_t cpuid) {
     (void)cpuid;
     tick();
     if (requires_preemption()) {
-        //Yield
+        yield();
     } else if (requires_wakeup()) {
         wakeup();
     }

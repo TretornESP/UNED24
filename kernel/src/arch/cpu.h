@@ -51,4 +51,6 @@ struct cpu {
 };
 
 void init_cpus();
+struct cpu* get_cpu(uint64_t index);
+
 #endif

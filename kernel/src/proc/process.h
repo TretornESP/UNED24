@@ -57,8 +57,8 @@ struct task_signal {
 typedef void (*sighandler_t)(int, void*, uint64_t);
 
 struct task {
-    uint64_t rsp;
-    uint64_t rsp_top;
+    uint64_t stack_base;
+    uint64_t stack_top;
     struct page_directory* pd;
     void* fx;
 

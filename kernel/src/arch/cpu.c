@@ -38,3 +38,7 @@ void init_cpus() {
     load_interrupts_for_local_cpu();
     cpu->ready = 1;
 }
+
+struct cpu* get_cpu(uint64_t index) {
+    return cpu;
+}

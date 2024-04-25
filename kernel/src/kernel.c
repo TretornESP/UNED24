@@ -35,19 +35,17 @@
 #include "sched/scheduler.h"
 #include "proc/process.h"
 
-void nasty_handler(void* ttyb, uint8_t event) {
-    struct task * current = get_current_task();
-    add_signal(current->pid, SIGKILL, NULL, 0);
+void kwrite(int fd, char * buf, int size) {
+    printf("%s", buf);
+    yield();
 }
 
-void nasty_dude(const char * tty) {
-    struct device * dev = device_search(tty);
-    if(dev == NULL) {
-        printf("Device not found\n");
-        return;
-    }
+void a() {
+    while (1) kwrite(1, "a", 1);
+}
 
-    device_ioctl(tty, 0x1, nasty_handler);
+void b() {
+    while (1) kwrite(1, "b", 1);
 }
 
 void _start(void) {
@@ -73,11 +71,13 @@ void _start(void) {
     probe_fs();
     init_scheduler();
 
-    nasty_dude("ttyb");
-
-    struct task * task = create_task((void*)run_shell, "default");   
+    struct task * task = create_task((void*)run_shell, "default");
+    add_task(task);
+    task = create_task((void*)a, "default");
+    add_task(task);
+    task = create_task((void*)b, "default");
     add_task(task);
 
-    go(0);
+    go(5);
     while(1);
 }

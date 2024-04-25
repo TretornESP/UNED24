@@ -11,6 +11,7 @@
 #include "../util/string.h"
 #include "../arch/tss.h"
 #include "../arch/simd.h"
+#include "../arch/cpu.h"
 #include "../vfs/vfs_interface.h"
 
 #define MAX_TASKS 255
@@ -97,7 +98,16 @@ void unblock_task(struct task * task) {
 
 void __attribute__((noinline)) yield() {
     //TODO: Implement
-    sleep_ticks(50);
+    __asm__ volatile("cli");
+    if (current_task->last_scheduled != 0)
+        current_task->cpu_time += (get_ticks_since_boot() - current_task->last_scheduled);
+
+    struct task * prev = schedule();
+    current_task->last_scheduled = get_ticks_since_boot();
+
+    struct cpu * cpu = get_cpu(current_task->processor);
+    tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
+    ctxswtch(prev, current_task);
 }
 
 void add_task(struct task* task) {
@@ -219,10 +229,19 @@ struct task* get_current_task() {
 
 void go(uint32_t preempt) {
     //TODO: Implement the real version
+    __asm__ volatile("cli");
+    boot_task = malloc(sizeof(struct task));
+    memset(boot_task, 0, sizeof(struct task));
+
+    if (preempt) {
+        set_preeption_ticks(preempt);
+        enable_preemption();
+    }
+
     schedule();
-    printf("Switching to task %d\n", current_task->pid);
-    void (*ptr)(void) = current_task->entry;
-    ptr();
+    struct cpu * cpu = get_cpu(current_task->processor);
+    tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
+    ctxswtch(boot_task, current_task);
 }
 
 char * get_current_tty() {
@@ -359,8 +378,8 @@ struct task* create_task(void * init_func, const char * tty) {
     }
 
     task->entry = init_func;
-    task->rsp = (uint64_t)stackalloc(STACK_SIZE);
-    task->rsp_top = task->rsp + STACK_SIZE;
+    task->stack_base = (uint64_t)stackalloc(STACK_SIZE);
+    task->stack_top = task->stack_base + STACK_SIZE;
 
     //Create a stack frame (do not use structs)
     //Set r12-r15 to 0, rbx to 0
@@ -371,13 +390,13 @@ struct task* create_task(void * init_func, const char * tty) {
     __asm__ volatile("movq %%rsp, %0" : "=r"(saved_rsp));
 
     //Set rsp to the top of the stack
-    __asm__ volatile("movq %0, %%rsp" : : "r"(task->rsp_top));
+    __asm__ volatile("movq %0, %%rsp" : : "r"(task->stack_top));
 
     //Push the return address
     __asm__ volatile("pushq %0" : : "r"(init_func));
 
-    //Push the rsp_top
-    __asm__ volatile("pushq %0" : : "r"(task->rsp_top));
+    //Push the stack_base
+    __asm__ volatile("pushq %0" : : "r"(task->stack_top));
 
     __asm__ volatile("pushq $0x98"); //RAX
     __asm__ volatile("pushq $0x99"); //RBX
@@ -395,7 +414,7 @@ struct task* create_task(void * init_func, const char * tty) {
     __asm__ volatile("pushq $0x97"); //RDI
 
     //Save rsp to the task struct
-    __asm__ volatile("movq %%rsp, %0" : "=r"(task->rsp_top));
+    __asm__ volatile("movq %%rsp, %0" : "=r"(task->stack_top));
     //Set rsp to the saved rsp
     __asm__ volatile("movq %0, %%rsp" : : "r"(saved_rsp));
 
@@ -477,7 +496,6 @@ void process_loop() {
             }
             current_task->signal_queue = 0;
         }
-        yield();
         //Yield to the next task
     }
 }

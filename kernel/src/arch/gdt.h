@@ -11,9 +11,10 @@
 #define GDT_NULL_ENTRY                 0x0
 #define GDT_KERNEL_CODE_ENTRY          0x1
 #define GDT_KERNEL_DATA_ENTRY          0x2
-#define GDT_USER_CODE_ENTRY            0x3
+#define GDT_NULL_ENTRY_TWO             0x3
 #define GDT_USER_DATA_ENTRY            0x4
-#define GDT_TSS_ENTRY                  0x5
+#define GDT_USER_CODE_ENTRY            0x5
+#define GDT_TSS_ENTRY                  0x6
 
 #define GDT_DPL_KERNEL                  0x0
 #define GDT_DPL_USER                    0x3

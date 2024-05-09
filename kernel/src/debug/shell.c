@@ -196,7 +196,7 @@ void spawn(int argc, char* argv[]) {
     long nice = atoi(argv[1]);
     (void)nice;
     uint64_t addr = strtoull(argv[2], &endptr, 16);
-    add_task(create_task((void*)addr, get_current_tty()));
+    add_task(create_task((void*)addr, get_current_tty(), USER_TASK));
 }
 
 void kill(int argc, char* argv[]) {

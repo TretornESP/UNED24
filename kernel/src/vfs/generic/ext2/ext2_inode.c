@@ -197,7 +197,7 @@ uint8_t* ext2_read_inode_bitmap(struct ext2_partition* partition, uint32_t inode
         return 0;
     }
 
-    if (!read_disk(partition->disk, inode_bitmap_buffer, partition->lba + inode_bitmap_lba, sectors_per_block)) {
+    if (!read_disk(partition->disk, inode_bitmap_buffer, partition->lba + inode_bitmap_lba, sectors_per_block*partition->sector_size)) {
         EXT2_ERROR("Inode read failed");
         free(inode_bitmap_buffer);
         return 0;
@@ -241,7 +241,7 @@ uint8_t ext2_write_inode(struct ext2_partition* partition, uint32_t inode_number
         return 1;
     }
 
-    if (!read_disk(partition->disk, root_inode_buffer, partition->lba + inode_table_lba + inode_block*sectors_per_block, sectors_per_block)) {
+    if (!read_disk(partition->disk, root_inode_buffer, partition->lba + inode_table_lba + inode_block*sectors_per_block, sectors_per_block*partition->sector_size)) {
         EXT2_ERROR("Root inode read failed");
         free(root_inode_buffer);
         return 1;
@@ -254,7 +254,7 @@ uint8_t ext2_write_inode(struct ext2_partition* partition, uint32_t inode_number
         return 1;
     }
 
-    if (!write_disk(partition->disk, root_inode_buffer, partition->lba + inode_table_lba + inode_block*sectors_per_block, sectors_per_block)) {
+    if (!write_disk(partition->disk, root_inode_buffer, partition->lba + inode_table_lba + inode_block*sectors_per_block, sectors_per_block*partition->sector_size)) {
         EXT2_ERROR("Root inode write failed");
         free(root_inode_buffer);
         return 1;
@@ -286,7 +286,7 @@ struct ext2_inode_descriptor * ext2_read_inode(struct ext2_partition* partition,
         return 0;
     }
 
-    if (!read_disk(partition->disk, root_inode_buffer, partition->lba + inode_table_lba + inode_block*sectors_per_block, sectors_per_block)) {
+    if (!read_disk(partition->disk, root_inode_buffer, partition->lba + inode_table_lba + inode_block*sectors_per_block, sectors_per_block*partition->sector_size)) {
         EXT2_ERROR("Root inode read failed");
         free(root_inode_buffer);
         return 0;

@@ -77,7 +77,7 @@ void _start(void) {
     probe_fs();
     init_scheduler();
     set_current_tty("ttya");
-    struct task * task = create_task((void*)run_shell, "ttya");
+    struct task * task = create_task((void*)run_shell, "ttya", KERNEL_TASK);
     add_task(task);
 
     go(5);

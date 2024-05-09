@@ -1,6 +1,7 @@
 #include "cpu.h"
 #include "../arch/gdt.h"
 #include "../arch/tss.h"
+#include "../proc/syscall.h"
 #include "../memory/paging.h"
 #include "../io/interrupts.h"
 #include "../memory/heap.h"
@@ -35,6 +36,7 @@ void init_cpus() {
     setGsBase((uint64_t) cpu->ctx);
 
     load_gdt(BSP_CPU);
+    syscall_enable();
     load_interrupts_for_local_cpu();
     cpu->ready = 1;
 }

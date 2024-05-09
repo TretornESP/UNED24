@@ -97,7 +97,10 @@ uint32_t ext2_partition_count_partitions() {
 uint8_t ext2_partition_search(const char* name, uint32_t lba) {
     EXT2_INFO("Searching for ext2 partition %s:%d", name, lba);
     uint8_t bpb[1024];
-    if (!read_disk(name, bpb, lba+2, 2)) return 0;
+    if (!read_disk(name, bpb, lba+2, 1024)) {
+        EXT2_ERROR("Failed to read disk");
+        return 0;
+    }
 
     struct ext2_superblock *sb = (struct ext2_superblock *)bpb;
     if (sb->s_magic == EXT2_SUPER_MAGIC) {
@@ -138,7 +141,7 @@ struct ext2_partition * ext2_partition_register_partition(const char* disk, uint
     EXT2_DEBUG("Disk %s is ready, sector size is %d", disk, sector_size);
 
     uint8_t superblock_buffer[1024];
-    if (!read_disk(disk, superblock_buffer, lba+SB_OFFSET_LBA, 2)) {
+    if (!read_disk(disk, superblock_buffer, lba+SB_OFFSET_LBA, 1024)) {
         EXT2_ERROR("Failed to read superblock");
         return 0;
     }
@@ -178,7 +181,7 @@ struct ext2_partition * ext2_partition_register_partition(const char* disk, uint
     int32_t backup_bgs[64] = {-1};
     uint32_t backup_bgs_count = 0;
     for (uint32_t i = 0; i < block_groups_first; i++) {
-        if (!read_disk(disk, dummy_sb_buffer, lba+(i*sectors_per_group)+SB_OFFSET_LBA, 2)) {
+        if (!read_disk(disk, dummy_sb_buffer, lba+(i*sectors_per_group)+SB_OFFSET_LBA, 1024)) {
             EXT2_ERROR("Failed to read dummy superblock");
             return 0;
         }
@@ -194,12 +197,10 @@ struct ext2_partition * ext2_partition_register_partition(const char* disk, uint
     //TODO: End of sanity check
 
     void * block_group_descriptor_buffer = malloc(block_group_descriptors_size * sector_size);
-    
-    for (uint32_t i = 0; i < block_group_descriptors_size; i++) {
-        if (!read_disk(disk, (uint8_t*)block_group_descriptor_buffer + (i*sector_size), lba+(sectors_per_block*bgdt_block)+i, 1)) {
-            EXT2_ERROR("Failed to read block group descriptor table");
-            return 0;
-        }
+
+    if (!read_disk(disk, (uint8_t*)block_group_descriptor_buffer, lba+(sectors_per_block*bgdt_block), block_group_descriptors_size*sector_size)) {
+        EXT2_ERROR("Failed to read block group descriptor table");
+        return 0;
     }
 
     struct ext2_block_group_descriptor * block_group_descriptor = (struct ext2_block_group_descriptor*)block_group_descriptor_buffer;

@@ -13,6 +13,7 @@
 #include "../arch/simd.h"
 #include "../arch/cpu.h"
 #include "../vfs/vfs_interface.h"
+#include "../proc/syscall.h"
 
 #define MAX_TASKS 255
 
@@ -106,8 +107,15 @@ void __attribute__((noinline)) yield() {
     current_task->last_scheduled = get_ticks_since_boot();
 
     struct cpu * cpu = get_cpu(current_task->processor);
-    tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
-    ctxswtch(prev, current_task);
+    syscall_set_gs((uint64_t)cpu->ctx);
+    if (current_task->privilege == KERNEL_TASK) {
+        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 3);
+    } else {
+        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 3);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
+    }
+    ctxswtch(prev, current_task, prev->fxsave_region, current_task->fxsave_region);
 }
 
 void add_task(struct task* task) {
@@ -240,8 +248,15 @@ void go(uint32_t preempt) {
 
     schedule();
     struct cpu * cpu = get_cpu(current_task->processor);
-    tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
-    ctxswtch(boot_task, current_task);
+    syscall_set_gs((uint64_t)cpu->ctx);
+    if (current_task->privilege == KERNEL_TASK) {
+        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 3);
+    } else {
+        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 3);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
+    }
+    ctxswtch(boot_task, current_task, boot_task->fxsave_region, current_task->fxsave_region);
 }
 
 char * get_current_tty() {
@@ -317,16 +332,15 @@ void add_signal(int16_t pid, int signal, void * data, uint64_t size) {
     unlock_scheduler();
 }
 
-struct task* create_task(void * init_func, const char * tty) {
+struct task* create_task(void * init_func, const char * tty, uint8_t privilege) {
     lock_scheduler();
 
     struct task * task = malloc(sizeof(struct task));
-    task->fx = malloc(SIMD_CONTEXT_SIZE + 15);
-    task->fx = (void*)(((uint64_t)task->fx + 15) & ~0xF);
     task->state = TASK_READY;
     task->flags = 0;
     task->sigpending = 0;
     task->nice = 0;
+    task->privilege = privilege;
     task->mm = 0;
     task->frame = 0;
     task->processor = 0; //TODO: Change this for SMP
@@ -338,7 +352,7 @@ struct task* create_task(void * init_func, const char * tty) {
     task->pdeath_signal = 0;
     task->signal_queue = 0;
     memset(task->signal_handlers, 0, sizeof(sighandler_t) * TASK_SIGNAL_MAX);
-    
+    memset(task->fxsave_region, 0, 512);
     struct task * parent = get_current_task();
     if (parent == 0) {
         parent = task;
@@ -380,43 +394,20 @@ struct task* create_task(void * init_func, const char * tty) {
     task->entry = init_func;
     task->stack_base = (uint64_t)stackalloc(STACK_SIZE);
     task->stack_top = task->stack_base + STACK_SIZE;
-
+    task->alt_stack_base = (uint64_t)stackalloc(KERNEL_STACK_SIZE);
+    task->alt_stack_top = task->alt_stack_base + KERNEL_STACK_SIZE;
     //Create a stack frame (do not use structs)
     //Set r12-r15 to 0, rbx to 0
     //Set rip to init_func
-
-    uint64_t * saved_rsp;
-    //Save current rsp
-    __asm__ volatile("movq %%rsp, %0" : "=r"(saved_rsp));
-
-    //Set rsp to the top of the stack
-    __asm__ volatile("movq %0, %%rsp" : : "r"(task->stack_top));
-
-    //Push the return address
-    __asm__ volatile("pushq %0" : : "r"(init_func));
-
-    //Push the stack_base
-    __asm__ volatile("pushq %0" : : "r"(task->stack_top));
-
-    __asm__ volatile("pushq $0x98"); //RAX
-    __asm__ volatile("pushq $0x99"); //RBX
-    __asm__ volatile("pushq $0x9A"); //RCX
-    __asm__ volatile("pushq $0x9B"); //RDX
-    __asm__ volatile("pushq $0x88"); //R8
-    __asm__ volatile("pushq $0x89"); //R9
-    __asm__ volatile("pushq $0x90"); //R10
-    __asm__ volatile("pushq $0x91"); //R11
-    __asm__ volatile("pushq $0x92"); //R12
-    __asm__ volatile("pushq $0x93"); //R13
-    __asm__ volatile("pushq $0x94"); //R14
-    __asm__ volatile("pushq $0x95"); //R15
-    __asm__ volatile("pushq $0x96"); //RSI
-    __asm__ volatile("pushq $0x97"); //RDI
-
-    //Save rsp to the task struct
-    __asm__ volatile("movq %%rsp, %0" : "=r"(task->stack_top));
-    //Set rsp to the saved rsp
-    __asm__ volatile("movq %0, %%rsp" : : "r"(saved_rsp));
+    if (task->privilege == KERNEL_TASK) {
+        ctxcreat(&(task->stack_top), init_func, task->fxsave_region);
+        task->cs = get_kernel_code_selector();
+        task->ds = get_kernel_data_selector();
+    } else {
+        uctxcreat(&(task->stack_top), init_func, task->fxsave_region);
+        task->cs = get_user_code_selector();
+        task->ds = get_user_data_selector();
+    }
 
     task->pd = duplicate_current_pml4();
     strncpy(task->tty, tty, strlen(tty));
@@ -442,10 +433,18 @@ void resume_task(struct task* task) {
     unlock_scheduler();
 }
 
+void returnoexit() {
+    panic("Returned from a process!\n");
+}
+
+void invstack() {
+    panic("Kernel task doesnt have ustack!\n");
+}
+
 void init_scheduler() {
     printf("### SCHEDULER STARTUP ###\n");
     lock_scheduler();
-    struct task * idle_task = create_task(idle, "default"); //Spawn idle task
+    struct task * idle_task = create_task(idle, "default", KERNEL_TASK); //Spawn idle task
     idle_task->pid = 0;
     idle_task->state = TASK_IDLE;
 

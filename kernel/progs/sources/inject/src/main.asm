@@ -4,11 +4,13 @@
 global _start
 section .text
 _start:
+    cli
     mov rax, 1
     mov rdi, 1
     mov rsi, msg
     mov rdx, 13
-    int 0x80
+    syscall
+    sti
 loop:
     jmp loop
 

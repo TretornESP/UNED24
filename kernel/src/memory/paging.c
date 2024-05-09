@@ -190,6 +190,7 @@ void map_memory(struct page_directory* pml4, void* virtual_memory, void* physica
         pde.page_ppn = (uint64_t) pdp >> 12;
         pde.present = 1;
         pde.writeable = 1;
+        pde.user_access = 1;
         pml4->entries[map.PDP_i] = pde;
     } else {
         pdp = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
@@ -206,6 +207,7 @@ void map_memory(struct page_directory* pml4, void* virtual_memory, void* physica
         pde.page_ppn = (uint64_t) pd >> 12;
         pde.present = 1;
         pde.writeable = 1;
+        pde.user_access = 1;
         pdp->entries[map.PD_i] = pde;
     } else {
         pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
@@ -222,6 +224,7 @@ void map_memory(struct page_directory* pml4, void* virtual_memory, void* physica
         pde.page_ppn = (uint64_t) pt >> 12;
         pde.present = 1;
         pde.writeable = 1;
+        pde.user_access = 1;
         pd->entries[map.PT_i] = pde;
     } else {
         pt = (struct page_table*)((uint64_t)pde.page_ppn << 12);
@@ -231,6 +234,7 @@ void map_memory(struct page_directory* pml4, void* virtual_memory, void* physica
     pte.page_ppn = (uint64_t)physical_memory >> 12;
     pte.present = 1;
     pte.writeable = 1;
+    pte.user_access = 1;
     pt->entries[map.P_i] = pte;
 }
 

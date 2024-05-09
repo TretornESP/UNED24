@@ -6,6 +6,9 @@
 #include "../io/interrupts.h"
 #include "concurrency.h"
 
+#define KERNEL_TASK 0
+#define USER_TASK 1
+
 #define TASK_EXECUTING       0
 #define TASK_READY           1
 #define TASK_STOPPED         2
@@ -44,19 +47,23 @@ struct stack_frame {
     uint64_t ss;
 } __attribute__((packed));
 
-extern void ctxswtch(struct task * old_task, struct task* new_task);
+extern void ctxswtch(struct task * old_task, struct task* new_task, void* fxsave, void* fxrstor);
+extern void ctxcreat(void* rsp, void* intro, void* fxsave);
+extern void uctxcreat(void* rsp, void* intro, void* fxsave);
+
 void dump_processes();
 struct task* get_current_task();
 char * get_current_tty();
 void set_current_tty(char *);
 void reset_current_tty();
 void add_task(struct task* task);
-struct task* create_task(void * init_func, const char* tty);
+struct task* create_task(void * init_func, const char* tty, uint8_t privilege);
 void kill_task(int16_t pid);
 void pause_task(struct task* task);
 void resume_task(struct task* task);
 void init_scheduler();
 void pseudo_ps();
+void returnoexit();
 void exit();
 void yield();
 void task_test();

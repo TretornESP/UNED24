@@ -6,6 +6,8 @@
         "generic_fifo.h": "c",
         "fifo.h": "c",
         "fifo_interface.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "process.h": "c",
+        "msr.h": "c"
     }
 }

@@ -120,8 +120,9 @@ void create_gdt() {
         create_null_descriptor(i);
         create_code_descriptor(i, GDT_DPL_KERNEL);
         create_data_descriptor(i, GDT_DPL_KERNEL);
-        create_code_descriptor(i, GDT_DPL_USER);
-        create_data_descriptor(i, GDT_DPL_USER);
+        create_null_descriptor(i);
+        create_data_descriptor(i, GDT_DPL_USER); //0x20 | 3 = 0x23
+        create_code_descriptor(i, GDT_DPL_USER); //0x28 | 3 = 0x2b
         create_tss_descriptor(i, (uint64_t) &tss[i], sizeof(struct tss));
     }
 }

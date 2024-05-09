@@ -60,17 +60,28 @@ struct task {
     uint64_t stack_base;
     uint64_t stack_top;
     struct page_directory* pd;
-    void* fx;
-
+    uint64_t flags;
+    uint64_t cs;
+    uint64_t ds;
+    uint64_t es;
+    uint64_t fs;
+    uint64_t gs;
+    uint64_t ss;
+    
+    char fxsave_region[512] __attribute__((aligned(16)));
     int processor;
 
     volatile long state;
-    unsigned long flags;
+    uint8_t privilege;
     int sigpending;
     struct task_signal *signal_queue;
     sighandler_t signal_handlers[TASK_SIGNAL_MAX];
     
+    uint64_t alt_stack_base;
+    uint64_t alt_stack_top;
+
     long nice;
+    long current_nice;
     struct mm_struct *mm;
     struct interrupt_frame_error *frame;
 

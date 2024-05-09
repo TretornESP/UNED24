@@ -2,6 +2,7 @@
 #define _VFS_FIFO_H
 
 #include <stdint.h>
+#include "../../../drivers/serial/serial.h"
 
 struct vfs_fifo {
     char name[32];

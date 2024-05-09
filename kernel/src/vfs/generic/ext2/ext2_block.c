@@ -11,6 +11,7 @@
 
 #include "../../../memory/heap.h"
 #include "../../../util/string.h"
+#include "../../../util/printf.h"
 #include "../../../drivers/disk/disk_interface.h"
 
 int64_t ext2_read_block(struct ext2_partition* partition, uint32_t block, uint8_t * destination_buffer) {

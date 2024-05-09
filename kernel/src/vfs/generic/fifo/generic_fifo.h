@@ -6,7 +6,6 @@
 #include "../vfs_compat.h"
 
 #include "../../../util/printf.h"
-#include "../../../util/panic.h"
 #include "../../../util/string.h"
 
 #define MAX_FIFO_DEVICES 32

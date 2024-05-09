@@ -21,13 +21,13 @@ JAIL = 4096M # This is in case qemu crashes windows!
 
 # This are specific to my setup, please modify them!!!!
 #########################DESKTOP SETTINGS#################################
-QEMU := "/mnt/c/Program Files/qemu/qemu-system-x86_64.exe"
+#QEMU := "/mnt/c/Program Files/qemu/qemu-system-x86_64.exe"
 #GDB := "/mnt/c/Users/85562/crossgdb/gdb-12.1/gdb/gdb"
-WSLHOSTIP := $(shell ipconfig.exe | grep 'WSL' -a -A4 | tail -n1 | cut -d":" -f 2 | tail -n1 | sed -e 's/\s*//g')
+#WSLHOSTIP := $(shell ipconfig.exe | grep 'WSL' -a -A4 | tail -n1 | cut -d":" -f 2 | tail -n1 | sed -e 's/\s*//g')
 #########################LAPTOP SETTINGS###################################
-#QEMU := qemu-system-x86_64
+QEMU := qemu-system-x86_64
 GDB := gdb
-#WSLHOSTIP := 127.0.0.1
+WSLHOSTIP := 127.0.0.1
 ###########################################################################
 VBOXMANAGE := "/mnt/c/Program Files/Oracle/VirtualBox/VBoxManage.exe"
 VBOXHEADLESS := "/mnt/c/Program Files/Oracle/VirtualBox/VBoxHeadless.exe"
@@ -42,7 +42,7 @@ KERNEL_ENTRY := _start
 
 BLOCKSIZE := 1024
 MEMSIZE := 4G
-VMEMSIZE := 128
+VMEMSIZE := 1024M
 NUMAFLAGS := \
 -smp cpus=1
 #-object memory-backend-ram,size=1G,id=mem0 \
@@ -60,11 +60,11 @@ NUMAFLAGS := \
 #-numa dist,src=1,dst=2,val=20 \
 #-numa dist,src=1,dst=3,val=20
 
-QFLAGS ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -serial telnet::4444,server,nowait -cdrom 
-QFLAGSEXP ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -serial telnet::4444,server,nowait -drive if=pflash,format=raw,unit=0,file=./OVMFbin/OVMF_CODE-pure-efi.fd,readonly=on -drive if=pflash,format=raw,unit=1,file=./OVMFbin/OVMF_VARS-pure-efi.fd -drive file=
-QWFLAGSEXP ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -serial telnet::4444,server,nowait -drive if=pflash,format=raw,unit=0,file=$(WINDIRECTORY)/OVMF_CODE-pure-efi.fd,readonly=on -drive if=pflash,format=raw,unit=1,file=$(WINDIRECTORY)/OVMF_VARS-pure-efi.fd -drive file=
+QFLAGS ?= -cpu qemu64 -d cpu_reset -no-reboot -no-shutdown -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -serial telnet::4444,server,nowait -cdrom 
+QFLAGSEXP ?= -cpu qemu64 -d cpu_reset -no-reboot -no-shutdown -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -serial stdio -drive if=pflash,format=raw,unit=0,file=./OVMFbin/OVMF_CODE-pure-efi.fd,readonly=on -drive if=pflash,format=raw,unit=1,file=./OVMFbin/OVMF_VARS-pure-efi.fd -drive file=
+#QWFLAGSEXP ?= -cpu qemu64 -d cpu_reset -machine q35 $(NUMAFLAGS) -m $(MEMSIZE) -boot d -netdev tap,id=mynet0,ifname=tap,script=no,downscript=no -serial stdio -device e1000,netdev=mynet0,mac=51:52:53:54:55:56 -drive if=pflash,format=raw,unit=0,file=$(WINDIRECTORY)/OVMF_CODE-pure-efi.fd,readonly=on -drive if=pflash,format=raw,unit=1,file=$(WINDIRECTORY)/OVMF_VARS-pure-efi.fd -drive file=
 
-CFLAGS ?= -O2 -g -Wall -Wextra -pipe -Wno-packed-bitfield-compat -std=c11
+CFLAGS ?= -O3 -g -Wall -Wextra -pipe -Wno-packed-bitfield-compat -std=c11
 NASMFLAGS ?= -F dwarf -g
 LDFLAGS ?=
 CPPFLAGS ?=
@@ -121,7 +121,6 @@ override CFLAGS +=       \
     -mno-red-zone        \
     -mcmodel=kernel      \
     -MMD
-override CFLAGS += $(CEXTRA)
 
 override LDFLAGS +=         \
     -nostdlib               \
@@ -196,12 +195,17 @@ $(OBJDIR)/io/interrupts.o: $(SRCDIR)/io/interrupts.c
 $(OBJDIR)/drivers/serial/serial.o: $(SRCDIR)/drivers/serial/serial.c
 #	@ echo !==== COMPILING $^ with -mgeneral-regs-only
 	@ mkdir -p $(@D)
-	@$(CC) $(CFLAGS) -mgeneral-regs-only -c $^ -o $@
+	@$(CC) $(CFLAGS) -c $^ -o $@
+
+$(OBJDIR)/util/json.o: $(SRCDIR)/util/json.c
+#	@ echo !==== COMPILING $^ with -mgeneral-regs-only
+	@ mkdir -p $(@D)
+	@$(CC) $(CFLAGS) -c $^ -o $@
 
 $(OBJDIR)/util/dbgprinter.o: $(SRCDIR)/util/dbgprinter.c
 #	@ echo !==== COMPILING $^
 	@ mkdir -p $(@D)
-	@$(CC) $(CFLAGS) -mgeneral-regs-only -c $^ -o $@
+	@$(CC) $(CFLAGS) -c $^ -o $@
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 #	@ echo !==== COMPILING $^
@@ -249,15 +253,26 @@ setup:
 	@echo target remote $(WSLHOSTIP):$(GDBPORT) >> debug.gdb
 	@echo set disassembly-flavor intel >> debug.gdb
 	@echo b $(KERNEL_ENTRY) >> debug.gdb
+	@echo b interrupt_exception_handler >> debug.gdb
+	@echo b PageFault_Handler >> debug.gdb
+	@echo b DoubleFault_Handler >> debug.gdb
+	@echo b GPFault_Handler >> debug.gdb
 	@echo c >> debug.gdb
 
 cleansetup:
 	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
-	@rm -rf $(BUILDHOME)
 	@rm -f debug.gdb
+	@rm -f /mnt/c/Users/$(WINUSER)/$(WDIR)/OVMF_VARS-pure-efi.fd
+	@rm -f /mnt/c/Users/$(WINUSER)/$(WDIR)/OVMF_CODE-pure-efi.fd
+	@rm -rf $(ISOBUILDDIR)
 	@rm -rf $(LMNDIR)
-	@rm -rf $(PROGSBUILDDIR)
 	@rm -rf /mnt/c/Users/$(WINUSER)/$(WDIR)
+	@rm -rf $(ISODIR)
+	@rm -rf $(PROGSBUILDDIR)
+	@rm -rf $(ISOBUILDDIR)
+	@rm -rf $(OBJDIR)
+	@rm -rf $(BUILDDIR)
+
 buildimg:
 	@cp -v limine.cfg $(BUILDDIR)/$(KERNEL) $(ISOBUILDDIR)
 	@xorriso -as mkisofs -b limine-cd.bin \
@@ -279,20 +294,17 @@ buildimgexp:
 	@mcopy -i $(ISODIR)/$(IMG) ./test/test.fake ::/TEST
 
 buildimggpt:
-
+	@gcc -v
 	$(eval LOOP_DEV_PATH := $(shell losetup -a | grep $(IMG) | cut -d: -f1))
 	@echo Loop device path: $(LOOP_DEV_PATH)
 	
 	@sudo sgdisk --new 1:0:+50M --typecode 1:ef00 $(LOOP_DEV_PATH)
-	@sudo sgdisk --new 2:0:+100M -t 2:8300 $(LOOP_DEV_PATH)
-	@sudo sgdisk --new 3:0:0  -t 3:8300 $(LOOP_DEV_PATH)
+	@sudo sgdisk --new 2:0:0  -t 2:8300 $(LOOP_DEV_PATH)
 	@sudo sgdisk -p $(LOOP_DEV_PATH)
 	@sudo fdisk -l $(LOOP_DEV_PATH)
-	@-sudo partprobe
+	@sudo partprobe
 	@sudo mkfs.fat -n PATATA -F32 $(LOOP_DEV_PATH)p1
-	@sudo mkfs.fat -n FDATA -F32 $(LOOP_DEV_PATH)p2
-	@sudo mkfs.ext2 -L FDATA2 $(LOOP_DEV_PATH)p3 -b $(BLOCKSIZE)
-	@sudo dumpe2fs $(LOOP_DEV_PATH)p3 | grep -i superblock
+	@sudo mkfs.ext2 -L FDATA2 $(LOOP_DEV_PATH)p2 -b $(BLOCKSIZE)
 	@sudo mkdir $(MNTDIR)
 	@sudo mkdir $(SYSDIR)
 	@sudo mkdir $(DATDIR)
@@ -310,15 +322,8 @@ buildimggpt:
 	@sudo cp ./test/test.fake $(SYSDIR)/test
 	@sudo umount $(SYSDIR)
 
-	@echo System files created, creating f32 data files
-	@sudo mount $(LOOP_DEV_PATH)p2 $(DATDIR)
-	@sudo cp -r $(PROGSBUILDDIR) $(DATDIR)
-	@sudo cp -r $(PROGSDATADIR) $(DATDIR)
-	@sudo tree $(DATDIR)
-	@sudo umount $(DATDIR)
-
 	@echo F32 data files created, creating ext2 data files
-	@sudo mount $(LOOP_DEV_PATH)p3 $(DATDIR)
+	@sudo mount $(LOOP_DEV_PATH)p2 $(DATDIR)
 	@sudo cp -r $(PROGSBUILDDIR) $(DATDIR)
 	@sudo cp -r $(PROGSDATADIR) $(DATDIR)
 	@sudo tree $(DATDIR)
@@ -330,16 +335,24 @@ buildimggpt:
 run:
 	$(QEMU) $(QFLAGS) $(ISODIR)/$(ISO)
 
+#run_exp:
+#	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
+#	$(eval WINDIRECTORY := C:/Users/$(WINUSER)/$(WDIR))
+#	@echo "WINDIRECTORY: $(WINDIRECTORY)"
+#	@echo "Copying files to Windows directory..."
+#	@cp $(ISODIR)/$(IMG) /mnt/c/Users/$(WINUSER)/$(WDIR)/$(IMG)
+#	@ls -l /mnt/c/Users/$(WINUSER)/$(WDIR)
+#	$(QEMU) $(QWFLAGSEXP)$(WINDIRECTORY)/$(IMG)
+
 run_exp:
-	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
-	$(eval WINDIRECTORY := C:/Users/$(WINUSER)/$(WDIR))
-	@echo "WINDIRECTORY: $(WINDIRECTORY)"
-	@echo "Copying files to Windows directory..."
-	@cp $(ISODIR)/$(IMG) /mnt/c/Users/$(WINUSER)/$(WDIR)/$(IMG)
-	@ls -l /mnt/c/Users/$(WINUSER)/$(WDIR)
-	$(QEMU) $(QWFLAGSEXP)$(WINDIRECTORY)/$(IMG)
+	$(QEMU) $(QFLAGSEXP)$(ISODIR)/$(IMG)
+
+losetup_del:
+	$(eval LOOP_DEV_PATH := $(shell losetup -a | grep $(IMG) | cut -d: -f1))
+	@sudo losetup -d $(LOOP_DEV_PATH)
 
 gpt:
+	@make clean
 	@make kernel
 	@echo "Building GPT..."
 #This is required to be before buildimggpt!
@@ -369,9 +382,48 @@ cprogs:
 
 .PHONY: progs
 
+#debugpt:
+#	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
+#	$(eval WINDIRECTORY := C:/Users/$(WINUSER)/$(WDIR))
+#	@make kernel
+#	@echo "Building GPT..."
+##This is required to be before buildimggpt!
+#	@cp $(ISODIR)/$(IMG_RAW) $(ISODIR)/$(IMG)
+#	@sudo losetup -Pf $(ISODIR)/$(IMG)
+## Due to eval weird behaviour
+#	@make buildimggpt
+#	@echo "Running GPT QEMU..."
+#	@echo "WINDIRECTORY: $(WINDIRECTORY)"
+#	@echo "Copying files to Windows directory..."
+#	@cp $(ISODIR)/$(IMG) /mnt/c/Users/$(WINUSER)/$(WDIR)/$(IMG)
+#	@ls -l /mnt/c/Users/$(WINUSER)/$(WDIR)
+#	$(CMDNEWSCREEN) $(GDB) $(GDBFLAGS) & $(QEMU) -S -s $(QWFLAGSEXP)$(WINDIRECTORY)/$(IMG)
+
+debug_fs:
+	@sudo sudo losetup -Pf $(ISODIR)/$(IMG)
+	@sudo make debug_fs_step2
+
+debug_fs_step2:
+	$(eval LOOP_DEV_PATH := $(shell losetup -a | grep $(IMG) | cut -d: -f1))
+	@echo Loop device path: $(LOOP_DEV_PATH)
+	@sudo mkdir $(MNTDIR)
+	@sudo mkdir $(SYSDIR)
+	@sudo mkdir $(DATDIR)
+	@sudo mount $(LOOP_DEV_PATH)p1 $(SYSDIR)
+	@sudo mount $(LOOP_DEV_PATH)p2 $(DATDIR)
+	@echo "System files:"
+	@sudo tree $(SYSDIR)
+	@echo "Data files:"
+	@sudo tree $(DATDIR)
+
+cleanfsd:
+	@sudo umount $(SYSDIR) || /bin/true
+	@sudo umount $(DATDIR) || /bin/true
+	@sudo rm -rf $(MNTDIR)
+	@make losetup_del
+
 debugpt:
-	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
-	$(eval WINDIRECTORY := C:/Users/$(WINUSER)/$(WDIR))
+	@make clean
 	@make kernel
 	@echo "Building GPT..."
 #This is required to be before buildimggpt!
@@ -380,11 +432,7 @@ debugpt:
 # Due to eval weird behaviour
 	@make buildimggpt
 	@echo "Running GPT QEMU..."
-	@echo "WINDIRECTORY: $(WINDIRECTORY)"
-	@echo "Copying files to Windows directory..."
-	@cp $(ISODIR)/$(IMG) /mnt/c/Users/$(WINUSER)/$(WDIR)/$(IMG)
-	@ls -l /mnt/c/Users/$(WINUSER)/$(WDIR)
-	$(CMDNEWSCREEN) $(GDB) $(GDBFLAGS) & $(QEMU) -S -s $(QWFLAGSEXP)$(WINDIRECTORY)/$(IMG)
+	$(CMDNEWSCREEN) $(GDB) $(GDBFLAGS) & $(QEMU) -S -s $(QFLAGSEXP)$(ISODIR)/$(IMG)
 
 debuge:
 	@make kernel
@@ -394,7 +442,7 @@ debuge:
 	$(QEMU) -S -s $(QFLAGSEXP)$(ISODIR)/$(IMG)
 
 debug:
-	@make CEXTRA=-O0 kernel
+	@make kernel
 	@make buildimg
 	$(CMDNEWSCREEN) $(GDB) $(GDBFLAGS) &
 	$(QEMU) -S -s $(QFLAGS) $(ISODIR)/$(ISO)

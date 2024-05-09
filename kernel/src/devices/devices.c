@@ -89,11 +89,15 @@ void driver_unregister_block(uint8_t major) {
 }
 
 //Dispositivos
-void device_list() {
-    struct device* device = device_header;
-    while (device->next != 0) {
-        printf("Device: %s [MAJ: %x MIN: %x ID: %x CTRL: %x]\n", device->name, device->bc << 7 | device->major, device->minor, device->internal_id, device->device_control_structure);
-        device = device->next;
+void device_list(uint8_t mode) {
+    struct device* dev = device_header;
+    while (dev->valid) {
+        if (mode == MODE_BLOCK && dev->bc == 0)
+            printf("Device: %s [MAJ: %x MIN: %x]\n", dev->name, dev->major, dev->minor);
+        else if (mode == MODE_CHAR && dev->bc == 1) {
+            printf("Device: %s [MAJ: %x MIN: %x]\n", dev->name, dev->major, dev->minor);
+        }
+        dev = dev->next;
     }
 }
 

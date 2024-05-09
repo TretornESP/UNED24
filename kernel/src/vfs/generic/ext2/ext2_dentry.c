@@ -18,30 +18,11 @@ uint8_t ext2_delete_dentry(struct ext2_partition* partition, const char * path) 
     char * name;
     char * parent_path;
     if (!ext2_path_to_parent_and_name(path, &parent_path, &name)) return 1;
-    if (strlen(name) == 0) {
-        EXT2_ERROR("Invalid path %s", path);
-        return 1;
-    }
-
-    if (parent_path == 0) {
-        EXT2_ERROR("Invalid parent path %s", path);
-        return 1;
-    }
-
-    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-        EXT2_ERROR("Invalid path %s", path);
-        return 1;
-    }
-
-    if (strcmp(parent_path, ".") == 0 || strcmp(parent_path, "..") == 0) {
-        EXT2_ERROR("Invalid parent path %s", parent_path);
-        return 1;
-    }
     
     uint32_t block_size = 1024 << (((struct ext2_superblock*)partition->sb)->s_log_block_size);
 
     uint32_t parent_inode_number = ext2_path_to_inode(partition, parent_path);
-    if (parent_inode_number == 0) {
+    if (parent_inode_number == EXT2_INO_PTI_ERROR) {
         EXT2_ERROR("Parent directory %s does not exist", parent_path);
         return 1;
     }
@@ -53,7 +34,7 @@ uint8_t ext2_delete_dentry(struct ext2_partition* partition, const char * path) 
     }
 
     uint32_t target_inode_number = ext2_path_to_inode(partition, path);
-    if (target_inode_number == 0) {
+    if (target_inode_number == EXT2_INO_PTI_ERROR) {
         EXT2_ERROR("Target file %s does not exist", path);
         return 1;
     }
@@ -119,7 +100,7 @@ uint8_t ext2_delete_dentry(struct ext2_partition* partition, const char * path) 
 
 uint8_t ext2_dentry_get_dentry(struct ext2_partition* partition, const char* parent_path, const char* name, struct ext2_directory_entry* entry) {
     uint32_t inode_number = ext2_path_to_inode(partition, parent_path);
-    if (inode_number == 0) {
+    if (inode_number == EXT2_INO_PTI_ERROR) {
         EXT2_ERROR("Directory %s does not exist", parent_path);
         return 1;
     }
@@ -166,7 +147,7 @@ uint8_t ext2_dentry_get_dentry(struct ext2_partition* partition, const char* par
 
 void ext2_list_dentry(struct ext2_partition* partition, const char * path) {
     uint32_t inode_number = ext2_path_to_inode(partition, path);
-    if (inode_number == 0) {
+    if (inode_number == EXT2_INO_PTI_ERROR) {
         EXT2_ERROR("Directory %s does not exist", path);
         return;
     }
@@ -206,7 +187,7 @@ void ext2_list_dentry(struct ext2_partition* partition, const char * path) {
 
 uint32_t ext2_get_all_dirs(struct ext2_partition* partition, const char* parent_path, struct ext2_directory_entry** entries) {
     uint32_t inode_number = ext2_path_to_inode(partition, parent_path);
-    if (inode_number == 0) {
+    if (inode_number == EXT2_INO_PTI_ERROR) {
         EXT2_ERROR("Directory %s does not exist", parent_path);
         return 0;
     }
@@ -264,7 +245,7 @@ uint32_t ext2_get_all_dirs(struct ext2_partition* partition, const char* parent_
 
 uint8_t ext2_operate_on_dentry(struct ext2_partition* partition, const char* path, uint8_t (*callback)(struct ext2_partition* partition, uint32_t inode_entry)) {
     uint32_t inode_number = ext2_path_to_inode(partition, path);
-    if (inode_number == 0) {
+    if (inode_number == EXT2_INO_PTI_ERROR) {
         EXT2_ERROR("Directory %s does not exist", path);
         return 0;
     }

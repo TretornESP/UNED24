@@ -133,12 +133,12 @@ uint8_t split_into_path_and_name(const char* full_path, char* parent, char* name
 uint64_t ext2_get_file_size(struct ext2_partition* partition, const char* path) {
     EXT2_INFO("Getting file size of %s", path);
     uint32_t inode_number = ext2_path_to_inode(partition, path);
-    if (inode_number == EXT2_RESULT_ERROR) {
+    if (inode_number == EXT2_INO_PTI_ERROR) {
         return EXT2_RESULT_ERROR;
     }
 
     struct ext2_inode_descriptor_generic * inode = (struct ext2_inode_descriptor_generic *)ext2_read_inode(partition, inode_number);
-    if (inode == EXT2_RESULT_ERROR) {
+    if (inode == EXT2_INO_PTI_ERROR) {
         return EXT2_RESULT_ERROR;
     }
 
@@ -205,40 +205,15 @@ uint8_t ext2_create_file(struct ext2_partition * partition, const char* path, ui
         return EXT2_RESULT_ERROR;
     }
 
-    if (name == 0) {
-        EXT2_WARN("Invalid path");
-        return EXT2_RESULT_ERROR;
-    }
-
-    if (parent_path == 0) {
-        EXT2_WARN("Invalid parent path");
-        return EXT2_RESULT_ERROR;
-    }
-
-    if (strlen(name) == 0) {
-        EXT2_WARN("Invalid path");
-        return EXT2_RESULT_ERROR;
-    }
-
-    if (strlen(parent_path) == 0) {
-        EXT2_WARN("Invalid parent path");
-        return EXT2_RESULT_ERROR;
-    }
-
     uint32_t parent_inode_index = ext2_path_to_inode(partition, parent_path);
-    if (!parent_inode_index) {
+    if (parent_inode_index == EXT2_INO_PTI_ERROR) {
         EXT2_WARN("Parent directory doesn't exist");
         return EXT2_RESULT_ERROR;
     }
 
     struct ext2_inode_descriptor_generic * parent_inode = (struct ext2_inode_descriptor_generic *)ext2_read_inode(partition, parent_inode_index);
-    if (parent_inode == 0) {
-        EXT2_ERROR("Failed to read parent inode");
-        return EXT2_RESULT_ERROR;
-    }
-    
     if (!(parent_inode->i_mode & INODE_TYPE_DIR)) {
-        EXT2_WARN("Parent inode for path %s is not a directory: %d", parent_path, parent_inode->i_mode);
+        EXT2_WARN("Parent inode is not a directory");
         return EXT2_RESULT_ERROR;
     }
 
@@ -340,7 +315,7 @@ uint8_t ext2_read_file(struct ext2_partition * partition, const char * path, uin
 
     uint32_t inode_index = ext2_path_to_inode(partition, path);
 
-    if (!inode_index) {
+    if (inode_index == EXT2_INO_PTI_ERROR) {
         EXT2_WARN("Failed to find inode");
         return EXT2_RESULT_ERROR;
     }
@@ -378,7 +353,7 @@ uint8_t ext2_read_file(struct ext2_partition * partition, const char * path, uin
 uint32_t ext2_get_inode_index(struct ext2_partition* partition, const char* path) {
     EXT2_INFO("Getting inode index for %s", path);
     uint32_t inode_index = ext2_path_to_inode(partition, path);
-    if (!inode_index) {
+    if (inode_index == EXT2_INO_PTI_ERROR) {
         EXT2_WARN("Failed to find inode");
         return EXT2_RESULT_ERROR;
     }
@@ -396,14 +371,14 @@ uint8_t ext2_write_file(struct ext2_partition * partition, const char * path, ui
     EXT2_INFO("Writing file %s", path);
 
     uint32_t inode_index = ext2_path_to_inode(partition, path);
-    if (!inode_index) {
+    if (inode_index == EXT2_INO_PTI_ERROR) {
         EXT2_WARN("File doesn't exist");
         return EXT2_RESULT_ERROR;
     }
     
     EXT2_DEBUG("File created, trying to get inode");
     inode_index = ext2_path_to_inode(partition, path);
-    if (!inode_index) {
+    if (inode_index == EXT2_INO_PTI_ERROR) {
         EXT2_ERROR("Failed to get file inode");
         return EXT2_RESULT_ERROR;
     }
@@ -440,7 +415,7 @@ uint8_t ext2_delete_file(struct ext2_partition* partition, const char * path) {
     EXT2_INFO("Deleting file %s", path);
     uint32_t inode_index = ext2_path_to_inode(partition, path);
     EXT2_DEBUG("Deleting file %s, inode %d", path, inode_index);
-    if (!inode_index) {
+    if (inode_index == EXT2_INO_PTI_ERROR) {
         EXT2_WARN("File doesn't exist");
         return EXT2_RESULT_ERROR;
     }
@@ -474,10 +449,12 @@ void ext2_dump_partition(struct ext2_partition* partition) {
 }
 
 uint8_t ext2_debug(struct ext2_partition* partition) {
-    //ext2_dump_partition(partition);
-    //ext2_dump_sb(partition);
-    //ext2_dump_all_bgs(partition);
-    ext2_dump_all_inodes(partition, "/"); //TODO: Get the root inode name from somewhere
+    
+    ext2_dump_partition(partition);
+    ext2_dump_sb(partition);
+    ext2_dump_all_bgs(partition);
+    //ext2_dump_all_inodes(partition, "/"); //TODO: Get the root inode name from somewhere
+    ext2_dump_inode_bitmap(partition);
     return EXT2_RESULT_OK;
 }
 
@@ -508,7 +485,7 @@ uint8_t ext2_errors() {
 
 uint16_t ext2_get_file_permissions(struct ext2_partition* partition, const char* path) {
     uint32_t inode_index = ext2_path_to_inode(partition, path);
-    if (!inode_index) {
+    if (inode_index == EXT2_INO_PTI_ERROR) {
         EXT2_WARN("File doesn't exist");
         return EXT2_RESULT_ERROR;
     }

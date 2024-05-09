@@ -617,7 +617,7 @@ fstatus fat_follow_path(struct dir_s* dir, const char* path, uint32_t length) {
 /// Microsoft, not the BPB volume ID
 fstatus fat_get_vol_label(struct volume_s* vol, char* label) {	
 	// Make a directory object pointing to the root directory
-	struct dir_s dir;
+	struct dir_s dir = {0};
 	dir.sector = vol->root_lba;
 	dir.rw_offset = 0;
 	dir.cluster = fat_sect_to_clust(vol, dir.sector);
@@ -898,7 +898,7 @@ struct volume_s* volume_get(char letter) {
 /// Set the volume label in the BPB SFN entry
 fstatus volume_set_label(struct volume_s* vol, const char* name, uint8_t length) {
 	// Make a directory object pointing to the root directory
-	struct dir_s dir;
+	struct dir_s dir = {0};
 	dir.sector = vol->root_lba;
 	dir.rw_offset = 0;
 	dir.cluster = fat_sect_to_clust(vol, dir.sector);

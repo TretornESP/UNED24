@@ -67,6 +67,7 @@ void process_loop();
 
 static inline void lock_scheduler(void) {
 #ifndef SMP
+    __asm__("cli");
     atomic_increment(&irq_disable_counter);
 #endif
 }
@@ -74,6 +75,9 @@ static inline void lock_scheduler(void) {
 static inline void unlock_scheduler(void) {
 #ifndef SMP
     atomic_decrement(&irq_disable_counter);
+    if (irq_disable_counter == 0) {
+        __asm__("sti");
+    }
 #endif
 }
 

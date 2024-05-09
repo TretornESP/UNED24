@@ -123,12 +123,8 @@ void ext2_add_error(char * error, const char* function, char* file, uint32_t lin
         return;
     }
 
-    message->msg = calloc(1, strlen(error));
-    strcpy(message->msg, error);
-    message->function = calloc(1, strlen(function));
-    strcpy(message->function, function);
-    message->file = calloc(1, strlen(file));
-    strcpy(message->file, file);
+    message->msg = malloc(strlen(error));
+    strncpy(message->msg, error, strlen(error));
 
     if (strlen(function) > ERROR_FUNC_SIZE) {
         message->function = malloc(strlen("Function name too long"));
@@ -171,6 +167,10 @@ void ext2_add_error(char * error, const char* function, char* file, uint32_t lin
     message->id = error_id;
     error_id++;
     error_messages = message;
+
+#ifdef PRINT_RIGHT_AWAY
+    printf("[EXT2] [%s] %-128s [%s]\n", error_type_names[type], error, function);
+#endif
 
     free(error);
 }

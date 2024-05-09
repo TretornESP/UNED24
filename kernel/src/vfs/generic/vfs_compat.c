@@ -162,6 +162,7 @@ uint8_t add_file_to_dirfd(int fd, const char* name, uint32_t inode, uint32_t typ
     dentry->name_len = name_len;
     strncpy(dentry->name, name, strlen(name));
     open_directory_table[fd].number++;
+    //printf("added file to dirfd: %s new number\n", name, open_directory_table[fd].number);
     
     return 1;
 }

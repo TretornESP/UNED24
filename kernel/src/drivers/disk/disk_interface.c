@@ -6,6 +6,7 @@
 #include "disk_interface.h"
 #include "disk_dd.h"
 #include "../../devices/devices.h"
+#include "../../util/printf.h"
 
 uint8_t disk_get_status(const char * disk) {
 	return (device_search(disk) != 0) ? STATUS_READY : STATUS_NOT_READY;
@@ -24,16 +25,20 @@ int init_disk(const char * drive) {
 }
 
 uint8_t disk_read(const char * disk, uint8_t* buffer, uint32_t lba, uint32_t count) {
+	//printf("Reading disk %s lba: %d count %d to %p\n", disk, lba, count, buffer);
 	return device_read(disk, count, lba, buffer);
 }
 int read_disk(const char* drive, void *buffer, int sector, int count) {
+	//printf("Reading drive %s sector: %d count %d to %p\n", drive, sector, count, buffer);
 	return device_read(drive, count, sector, buffer);
 }
 
 uint8_t disk_write(const char * disk, uint8_t* buffer, uint32_t lba, uint32_t count) {
+	printf("Writing disk %s lba: %d count %d to %p\n", disk, lba, count, buffer);
 	return device_write(disk, count, lba, buffer);
 }
 int write_disk(const char * drive, void *buffer, int sector, int count) {
+	printf("Writing drive %s sector: %d count %d to %p\n", drive, sector, count, buffer);
 	return device_write(drive, count, sector, buffer);
 }
 

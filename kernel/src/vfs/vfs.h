@@ -80,7 +80,7 @@ struct vfs_mount {
 };
 
 void dump_mounts();
-uint8_t iterate_mounts(uint8_t (*callback)(struct vfs_mount*, void * data), void * data);
+uint8_t iterate_mounts(uint8_t (*callback)(struct vfs_mount*, void * data, void* passthrough), void * data, void* passthrough);
 struct vfs_mount* get_mount_from_path(const char* path, char* native_path);
 char* get_full_path_from_fd(int fd);
 char* get_full_path_from_dir(int fd);

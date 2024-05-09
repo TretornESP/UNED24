@@ -2,7 +2,6 @@
 #include "../../../memory/heap.h"
 #include "../../../util/string.h"
 #include "../../../util/printf.h"
-#include "../../../util/panic.h"
 #include "../../../drivers/fifo/fifo_dd.h"
 #include "../../../drivers/fifo/fifo_interface.h"
 

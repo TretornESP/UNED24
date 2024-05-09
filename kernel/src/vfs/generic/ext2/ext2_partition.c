@@ -195,10 +195,13 @@ struct ext2_partition * ext2_partition_register_partition(const char* disk, uint
 
     void * block_group_descriptor_buffer = malloc(block_group_descriptors_size * sector_size);
     
-    if (!read_disk(disk, (uint8_t*)block_group_descriptor_buffer, lba+(sectors_per_block*bgdt_block), block_group_descriptors_size)) {
-        EXT2_ERROR("Failed to read block group descriptor table");
-        return 0;
+    for (uint32_t i = 0; i < block_group_descriptors_size; i++) {
+        if (!read_disk(disk, (uint8_t*)block_group_descriptor_buffer + (i*sector_size), lba+(sectors_per_block*bgdt_block)+i, 1)) {
+            EXT2_ERROR("Failed to read block group descriptor table");
+            return 0;
+        }
     }
+
     struct ext2_block_group_descriptor * block_group_descriptor = (struct ext2_block_group_descriptor*)block_group_descriptor_buffer;
 
     EXT2_DEBUG("Registering partition %s:%d", disk, lba);

@@ -35,6 +35,11 @@
 #include "sched/scheduler.h"
 #include "proc/process.h"
 
+//Opcion a: todo igual
+//Opcion b: un bloque de as y un bloque de bs
+//Opcion c: se bloquea en a o b
+//Opcion d: segfault
+
 void kwrite(int fd, char * buf, int size) {
     printf("%s", buf);
     yield();
@@ -64,18 +69,15 @@ void _start(void) {
     init_drive_dd();
     init_serial_dd();
     init_tty_dd();
+    ext2_set_debug_base("ext2/");
     register_filesystem(fat32_registrar);
     register_filesystem(ext2_registrar);
     register_filesystem(fifo_registrar);
     register_comm();
     probe_fs();
     init_scheduler();
-
-    struct task * task = create_task((void*)run_shell, "default");
-    add_task(task);
-    task = create_task((void*)a, "default");
-    add_task(task);
-    task = create_task((void*)b, "default");
+    set_current_tty("ttya");
+    struct task * task = create_task((void*)run_shell, "ttya");
     add_task(task);
 
     go(5);

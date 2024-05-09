@@ -8,7 +8,6 @@
 #include "../vfs_compat.h"
 
 #include "../../../util/printf.h"
-#include "../../../util/panic.h"
 
 #define MAX_EXT2_PARTITIONS 32
 #define MAX_EXT2_OPEN_FILES 65536
@@ -174,10 +173,14 @@ int ext2_compat_dir_load(int partno, int fd) {
     uint32_t count = 0;
     uint8_t result = ext2_read_directory(partition, entry->name, &count, &entries);
     if (result != EXT2_RESULT_OK) {
+        //printf("(ext2_compat_dir_load) Error reading directory\n");
         return 0;
     }
 
+    //printf("(ext2_compat_dir_load) count: %d Loading directory: %s\n", count, entry->name);
+
     for (uint32_t i = 0; i < count; i++) {
+        //printf("Adding file to dirfd: %s\n", entries[i].name);
         struct ext2_directory_entry * entry = &entries[i];
         add_file_to_dirfd(fd, entry->name, entry->inode, entry->file_type, entry->name_len);
     }

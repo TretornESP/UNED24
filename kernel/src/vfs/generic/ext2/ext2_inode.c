@@ -12,6 +12,7 @@
 #include "../../../memory/heap.h"
 #include "../../../util/string.h"
 #include "../../../util/printf.h"
+#include "../../../util/panic.h"
 
 #define EXT2_ROOT_INO_INDEX     2
 
@@ -19,6 +20,7 @@ void ext2_dump_inode_bitmap(struct ext2_partition * partition) {
     uint32_t block_size = 1024 << (((struct ext2_superblock*)partition->sb)->s_log_block_size);
     uint32_t block_group_count = partition->group_number;
     
+    printf("[EXT2] Dumping inode bitmaps: %d\n", block_group_count);
     for (uint32_t i = 0; i < block_group_count; i++) {
         struct ext2_block_group_descriptor * bgd = (struct ext2_block_group_descriptor *)&partition->gd[i];
         uint8_t * bitmap = (uint8_t*)ext2_buffer_for_size(block_size, block_size);
@@ -28,9 +30,8 @@ void ext2_dump_inode_bitmap(struct ext2_partition * partition) {
         }
 
         if (ext2_read_block(partition, bgd->bg_inode_bitmap, bitmap) != 1) {
-            EXT2_ERROR("Failed to read inode bitmap");
-            free(bitmap);
-            return;
+            EXT2_ERROR("Failed to read inode bitmap %d\n", i);
+            continue;
         }
 
         printf("[EXT2] Inode bitmap for block group %d\n", i);
@@ -279,6 +280,7 @@ struct ext2_inode_descriptor * ext2_read_inode(struct ext2_partition* partition,
     uint32_t inode_table_block = partition->gd[inode_group].bg_inode_table;
     uint32_t inode_table_lba = (inode_table_block * block_size) / partition->sector_size;
     uint8_t * root_inode_buffer = malloc(block_size);
+    EXT2_INFO("Reading inode %d Grp: %d Idx: %d Blk: %d, Tbl_blk: %d Tbl_lba: %d", inode_number, inode_group, inode_index, inode_block, inode_table_block, inode_table_lba);
     if (root_inode_buffer == 0) {
         EXT2_ERROR("Failed to allocate memory for root inode");
         return 0;
@@ -341,27 +343,28 @@ void ext2_print_inode(struct ext2_inode_descriptor_generic* inode) {
 
 }
 
-uint32_t ext2_inode_from_path_and_parent(struct ext2_partition* partition, uint32_t parent_inode, const char* path) {
+int32_t ext2_inode_from_path_and_parent(struct ext2_partition* partition, uint32_t parent_inode, const char* path) {
     uint32_t block_size = 1024 << (((struct ext2_superblock*)partition->sb)->s_log_block_size);
     struct ext2_inode_descriptor_generic * root_inode = (struct ext2_inode_descriptor_generic *)ext2_read_inode(partition, parent_inode);
     if (root_inode == 0) {
         EXT2_WARN("Failed to read root inode");
-        return 1;
+        return EXT2_INO_PAP_ERROR;
     }
 
     if (root_inode->i_mode & INODE_TYPE_DIR) {
         uint8_t *block_buffer = malloc(root_inode->i_size + block_size);
+        memset(block_buffer, 0, root_inode->i_size + block_size);
         if (block_buffer == 0) {
             EXT2_ERROR("Failed to allocate memory for block buffer");
             free(root_inode);
-            return 1;
+            return EXT2_INO_PAP_ERROR;
         }
 
         if (ext2_read_inode_bytes(partition, parent_inode, block_buffer, root_inode->i_size, 0) == EXT2_READ_FAILED) {
             EXT2_ERROR("Failed to read root inode");
             free(root_inode);
             free(block_buffer);
-            return 1;
+            return EXT2_INO_PAP_ERROR;
         }
 
         uint32_t parsed_bytes = 0;
@@ -369,37 +372,49 @@ uint32_t ext2_inode_from_path_and_parent(struct ext2_partition* partition, uint3
         while (parsed_bytes < root_inode->i_size) {
             struct ext2_directory_entry *entry = (struct ext2_directory_entry *) (block_buffer + parsed_bytes);
             if (strncmp(entry->name, path, entry->name_len) == 0) {
-                return entry->inode;
+                uint32_t inode = entry->inode;
+                EXT2_INFO("Returning inode %d", inode);
+                free(block_buffer);
+                return inode;
             }
             parsed_bytes += entry->rec_len;
         }
-       
+        
         free(block_buffer);
     }
 
-    return 0;
+    EXT2_WARN("Failed to find inode");
+    return EXT2_INO_PAP_NOTFOUND;
 }
 
 uint32_t ext2_path_to_inode(struct ext2_partition* partition, const char * path) {
     char * path_copy = malloc(strlen(path) + 1);
     if (path_copy == 0) {
         EXT2_ERROR("Failed to allocate memory for path copy");
-        return 0;
+        return EXT2_INO_PTI_ERROR;
     }
 
+    memset(path_copy, 0, strlen(path) + 1);
     strncpy(path_copy, path, strlen(path) + 1);
     char * token = strtok(path_copy, "/");
+    int32_t inode_index_i32 = EXT2_ROOT_INO_INDEX;
     uint32_t inode_index = EXT2_ROOT_INO_INDEX;
     while (token != 0) {
-        inode_index = ext2_inode_from_path_and_parent(partition, inode_index, token);
-
-        if (inode_index == 0) {
-            return 0;
+        EXT2_INFO("Previous index: %d, current token: %s", inode_index, token);
+        inode_index_i32 = ext2_inode_from_path_and_parent(partition, inode_index, token);
+        if (inode_index_i32 == EXT2_INO_PAP_ERROR || inode_index_i32 == EXT2_INO_PAP_NOTFOUND) {
+            EXT2_ERROR("Failed to get inode from path and parent prev: %d, token: %s", inode_index, token);
+            return EXT2_INO_PTI_ERROR;
         }
 
+        inode_index = (uint32_t) inode_index_i32;
+        EXT2_INFO("Next index: %d", inode_index_i32);
         token = strtok(0, "/");
     }
-
+    if (inode_index == 0) {
+        EXT2_ERROR("[CRITIAL] SILENT ERROR Inode Zer0 %s", path);
+        panic("Inode Zer0");
+    }
     return inode_index;
 }
 

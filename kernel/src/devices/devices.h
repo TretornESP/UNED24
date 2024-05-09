@@ -7,6 +7,11 @@
 #define DEVICE_NAME_MAX_SIZE 32
 #include <stdint.h>
 
+#define BLOCK_SCSI 0x8
+#define CHAR_SCSI 0x88
+#define MODE_CHAR 0x1
+#define MODE_BLOCK 0x2
+
 //Estructuras
 struct file_operations {
     uint64_t (*read)(uint64_t port, uint64_t size, uint64_t skip, uint8_t* buffer);
@@ -41,7 +46,7 @@ void driver_unregister_char(uint8_t major);
 void driver_unregister_block(uint8_t major);
 
 //Dispositivos
-void device_list();
+void device_list(uint8_t mode);
 char * device_create(void * device_control_structure, uint8_t major, uint64_t id);
 void device_destroy(char * device_name);
 

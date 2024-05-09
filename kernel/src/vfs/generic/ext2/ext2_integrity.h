@@ -9,6 +9,8 @@
 
 #include "ext2_structs.h"
 
+//#define PRINT_RIGHT_AWAY 0
+
 #define EXT2_ERROR_DEBUG 0
 #define EXT2_ERROR_INFO 1
 #define EXT2_ERROR_WARN 2

@@ -33,11 +33,11 @@ char translate(uint8_t scancode, uint8_t uppercase) {
 
 void init_keyboard() {
 
-    keyboard = (struct keyboard *)malloc(sizeof(struct keyboard));
+    keyboard = (struct keyboard *)kmalloc(sizeof(struct keyboard));
 
     memset((void*)keyboard, 0, sizeof(struct keyboard));
 
-    keyboard->ASCII_table = (char*)malloc(ASCII_SIZE);
+    keyboard->ASCII_table = (char*)kmalloc(ASCII_SIZE);
 
     memset(keyboard->ASCII_table, 0, ASCII_SIZE);
     memcpy(keyboard->ASCII_table, asciitable, ASCII_SIZE);

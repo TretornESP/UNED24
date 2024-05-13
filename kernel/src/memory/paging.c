@@ -127,6 +127,11 @@ void* swap_pml4(void* pml) {
     return old;
 }
 
+void invalidate_current_pml4() {
+    struct page_directory* pml4 = get_pml4();
+    __asm__("movq %0, %%cr3" : : "r" (pml4)); //This should invalidate TLB
+}
+
 void init_paging() {
     struct page_directory * pml4 = (struct page_directory*)allocate_pml4();
      __asm__("movq %%cr3, %0" : "=r"(pml4));

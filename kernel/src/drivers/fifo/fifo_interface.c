@@ -12,7 +12,7 @@ char * create_fifo(uint64_t size) {
 void destroy_fifo(char * device) {
     struct device* fifo_dev = device_search(device);
     struct fifo* fifo = (struct fifo*)fifo_dev->internal_id;
-    fifo_free(fifo);
+    fifo_kfree(fifo);
     device_destroy(device);
 }
 

@@ -16,7 +16,7 @@ uint32_t read_gpt(const char* disk, struct vfs_partition* partitions, void (*add
 		return 0;
 	}
 
-	struct gpt_header *gpt_header = (struct gpt_header *)malloc(sizeof(struct gpt_header));
+	struct gpt_header *gpt_header = (struct gpt_header *)kmalloc(sizeof(struct gpt_header));
 	memset((uint8_t*)gpt_header, 0, sizeof(struct gpt_header));
 	if (!disk_read(disk, (uint8_t*)gpt_header, 1, 1)) return 0;
 

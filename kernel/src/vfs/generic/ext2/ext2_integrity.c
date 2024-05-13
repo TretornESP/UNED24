@@ -50,7 +50,7 @@ void ext2_set_debug_base_path(const char* path) {
 char* ext2_format_message(const char* error, ...) {
     va_list args;
     va_start(args, error);
-    char * buffer = malloc(ERROR_MESSAGE_SIZE);
+    char * buffer = kmalloc(ERROR_MESSAGE_SIZE);
     if (buffer == 0) {
         printf("[EXT2] Failed to allocate memory for error message\n");
         return 0;
@@ -78,7 +78,7 @@ void ext2_clear_oldest_error() {
         prev->next = 0;
     }
 
-    free(message);
+    kfree(message);
 }
 
 void ext2_make_space() {
@@ -107,7 +107,7 @@ uint64_t ext2_get_error_deletion_counter() {
 
 void ext2_add_error(char * error, const char* function, char* file, uint32_t line, uint8_t type) {
     if (errors_inhibited) {
-        free(error);
+        kfree(error);
         return;
     }
 
@@ -116,45 +116,45 @@ void ext2_add_error(char * error, const char* function, char* file, uint32_t lin
         ext2_make_space();
     }
 
-    struct error_message * message = calloc(1, sizeof(struct error_message));
+    struct error_message * message = kcalloc(1, sizeof(struct error_message));
     if (message == 0) {
         printf("[EXT2] Failed to allocate memory for error message\n");
-        free(error);
+        kfree(error);
         return;
     }
 
-    message->msg = malloc(strlen(error));
+    message->msg = kmalloc(strlen(error));
     strncpy(message->msg, error, strlen(error));
 
     if (strlen(function) > ERROR_FUNC_SIZE) {
-        message->function = malloc(strlen("Function name too long"));
+        message->function = kmalloc(strlen("Function name too long"));
         strncpy(message->function, "Function name too long", strlen("Function name too long"));
     } else {
-        message->function = malloc(strlen(function));
+        message->function = kmalloc(strlen(function));
         strncpy(message->function, function, strlen(function));
     }
 
 
     if ((strlen(file) - strlen(debug_base_path)) > ERROR_FILE_SIZE) {
-        message->file = malloc(strlen("File name too long"));
+        message->file = kmalloc(strlen("File name too long"));
         strncpy(message->file, "File name too long", strlen("File name too long"));
     } else {
         if (strlen(file) <= strlen(debug_base_path)) {
             if (strlen(file) > ERROR_FILE_SIZE) {
-                message->file = malloc(strlen("File name too long"));
+                message->file = kmalloc(strlen("File name too long"));
                 strncpy(message->file, "File name too long", strlen("File name too long"));
             } else {
-                message->file = malloc(strlen(file));
+                message->file = kmalloc(strlen(file));
                 strncpy(message->file, file, strlen(file));
             }
         
         } else {
             if (strncmp(file, debug_base_path, strlen(debug_base_path)) == 0) {
                 if (strlen(file)-strlen(debug_base_path) > ERROR_FILE_SIZE) {
-                    message->file = malloc(strlen("File name too long"));
+                    message->file = kmalloc(strlen("File name too long"));
                     strncpy(message->file, "File name too long", strlen("File name too long"));
                 } else {
-                    message->file = malloc(strlen(file)-strlen(debug_base_path));
+                    message->file = kmalloc(strlen(file)-strlen(debug_base_path));
                     strncpy(message->file, file+strlen(debug_base_path), strlen(file)-strlen(debug_base_path));
                 }
             }
@@ -172,7 +172,7 @@ void ext2_add_error(char * error, const char* function, char* file, uint32_t lin
     printf("[EXT2] [%s] %-128s [%s]\n", error_type_names[type], error, function);
 #endif
 
-    free(error);
+    kfree(error);
 }
 
 uint8_t ext2_has_errors(uint8_t min_level) {
@@ -209,10 +209,10 @@ void ext2_clear_errors() {
     struct error_message * message = error_messages;
     while (message != 0) {
         struct error_message * next = message->next;
-        free(message->msg);
-        free(message->function);
-        free(message->file);
-        free(message);
+        kfree(message->msg);
+        kfree(message->function);
+        kfree(message->file);
+        kfree(message);
         message = next;
     }
     error_messages = 0;

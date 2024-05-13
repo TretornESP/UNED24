@@ -330,7 +330,7 @@ void trigger_pci_interrupt() {
 }
 
 void subscribe_pci_interrupt(const char* id, struct pci_device_header * dev, void (*cb)(void*), void * data) {
-    struct pci_dev_list* new_dev_list = malloc(sizeof(struct pci_dev_list));
+    struct pci_dev_list* new_dev_list = kmalloc(sizeof(struct pci_dev_list));
     new_dev_list->device = dev;
     new_dev_list->cb = cb;
     new_dev_list->data = data;
@@ -504,7 +504,7 @@ uint64_t get_bar_size(void* addresslow, uint32_t base_address){ //Address low is
     uint32_t BARValueLow = *(uint32_t*)addresslow;
     uint8_t Type = get_bar_type(BARValueLow);
 
-    uint8_t * confspace = malloc(PCI_CONFIGURATION_SPACE_SIZE);
+    uint8_t * confspace = kmalloc(PCI_CONFIGURATION_SPACE_SIZE);
     ReceiveConfigurationSpacePCI(base_address, confspace);
 
     if(Type != PCI_BAR_TYPE_NULL){
@@ -549,7 +549,7 @@ uint64_t get_bar_size(void* addresslow, uint32_t base_address){ //Address low is
         uint64_t Size = ((uint64_t)(SizeHigh & 0xFFFFFFFF) << 32) | (SizeLow & 0xFFFFFFFF);
         Size = ~Size + 1;
 
-        free(confspace);
+        kfree(confspace);
         return Size;
     }
 

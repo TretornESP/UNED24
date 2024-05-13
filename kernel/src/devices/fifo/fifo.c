@@ -2,18 +2,18 @@
 #include "../../memory/heap.h"
 
 struct fifo* fifo_alloc(uint64_t size) {
-    struct fifo *fifo = (struct fifo*)malloc(sizeof(struct fifo));
+    struct fifo *fifo = (struct fifo*)kmalloc(sizeof(struct fifo));
     if (!fifo) return (struct fifo*)0;
-    fifo->buf = (uint8_t*)malloc(size);
+    fifo->buf = (uint8_t*)kmalloc(size);
     fifo->size = size;
     fifo->head = 0;
     fifo->tail = 0;
     return fifo;
 }
 
-void fifo_free(struct fifo *fifo) {
-    free(fifo->buf);
-    free(fifo);
+void fifo_kfree(struct fifo *fifo) {
+    kfree(fifo->buf);
+    kfree(fifo);
 }
 
 uint8_t fifo_put(struct fifo *fifo, uint8_t data) {

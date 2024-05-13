@@ -73,12 +73,12 @@ int64_t ext2_read_indirect_blocks(struct ext2_partition* partition, uint32_t * b
 
         if (ext2_read_block(partition, blocks[i], (uint8_t*)indirect_block) <= 0) {
             EXT2_ERROR("Failed to read indirect block");
-            free(indirect_block);
+            kfree(indirect_block);
             return EXT2_READ_FAILED;
         }
 
         int64_t read_result = ext2_read_direct_blocks(partition, indirect_block, entries_per_block, destination_buffer, count - blocks_read , skip);
-        free(indirect_block);
+        kfree(indirect_block);
         if (read_result == EXT2_READ_FAILED || read_result == 0) return read_result;
 
         destination_buffer += (read_result * block_size);
@@ -102,11 +102,11 @@ int64_t ext2_read_double_indirect_blocks(struct ext2_partition* partition, uint3
         if (blocks[i] == 0) EXT2_WARN("Double indirect block is 0");
         if (ext2_read_block(partition, blocks[i], (uint8_t*)double_indirect_block) <= 0) {
             EXT2_ERROR("Failed to read double indirect block");
-            free(double_indirect_block);
+            kfree(double_indirect_block);
             return EXT2_READ_FAILED;
         }
         int64_t read_result = ext2_read_indirect_blocks(partition, double_indirect_block, entries_per_block, destination_buffer, count - blocks_read, skip);
-        free(double_indirect_block);
+        kfree(double_indirect_block);
 
         if (read_result == EXT2_READ_FAILED || read_result == 0) return read_result;
 
@@ -132,12 +132,12 @@ int64_t ext2_read_triple_indirect_blocks(struct ext2_partition* partition, uint3
         if (blocks[i] == 0) EXT2_WARN("Triple indirect block is 0");
         if (ext2_read_block(partition, blocks[i], (uint8_t*)triple_indirect_block) <= 0) {
             EXT2_ERROR("Failed to read triple indirect block");
-            free(triple_indirect_block);
+            kfree(triple_indirect_block);
             return EXT2_READ_FAILED;
         }
 
         int64_t read_result = ext2_read_double_indirect_blocks(partition, triple_indirect_block, entries_per_block, destination_buffer, count - blocks_read, skip);
-        free(triple_indirect_block);
+        kfree(triple_indirect_block);
 
         if (read_result == EXT2_READ_FAILED || read_result == 0) return read_result;
 
@@ -212,12 +212,12 @@ int64_t ext2_write_indirect_blocks(struct ext2_partition* partition, uint32_t * 
 
         if (ext2_read_block(partition, blocks[i], (uint8_t*)indirect_block) <= 0) {
             EXT2_ERROR("Failed to read indirect block");
-            free(indirect_block);
+            kfree(indirect_block);
             return EXT2_WRITE_FAILED;
         }
 
         int64_t write_result = ext2_write_direct_blocks(partition, indirect_block, entries_per_block, source_buffer, count - blocks_written, skip);
-        free(indirect_block);
+        kfree(indirect_block);
         if (write_result == EXT2_WRITE_FAILED || write_result == 0) return write_result;
 
         source_buffer += (write_result * block_size);
@@ -241,11 +241,11 @@ int64_t ext2_write_double_indirect_blocks(struct ext2_partition* partition, uint
         if (blocks[i] == 0) EXT2_WARN("Double indirect block is 0");
         if (ext2_read_block(partition, blocks[i], (uint8_t*)double_indirect_block) <= 0) {
             EXT2_ERROR("Failed to read double indirect block");
-            free(double_indirect_block);
+            kfree(double_indirect_block);
             return EXT2_WRITE_FAILED;
         }
         int64_t write_result = ext2_write_indirect_blocks(partition, double_indirect_block, entries_per_block, source_buffer, count - blocks_written, skip);
-        free(double_indirect_block);
+        kfree(double_indirect_block);
 
         if (write_result == EXT2_WRITE_FAILED || write_result == 0) return write_result;
 
@@ -271,12 +271,12 @@ int64_t ext2_write_triple_indirect_blocks(struct ext2_partition* partition, uint
         if (blocks[i] == 0) EXT2_WARN("Triple indirect block is 0");
         if (ext2_read_block(partition, blocks[i], (uint8_t*)triple_indirect_block) <= 0) {
             EXT2_ERROR("Failed to read triple indirect block (for write)");
-            free(triple_indirect_block);
+            kfree(triple_indirect_block);
             return EXT2_WRITE_FAILED;
         }
 
         int64_t write_result = ext2_write_double_indirect_blocks(partition, triple_indirect_block, entries_per_block, source_buffer, count - blocks_written, skip);
-        free(triple_indirect_block);
+        kfree(triple_indirect_block);
 
         if (write_result == EXT2_WRITE_FAILED || write_result == 0) return write_result;
 
@@ -308,7 +308,7 @@ uint32_t ext2_allocate_block(struct ext2_partition* partition) {
             continue;
         }
 
-        uint32_t * block_bitmap = (uint32_t *)malloc(block_size);
+        uint32_t * block_bitmap = (uint32_t *)kmalloc(block_size);
         if (!block_bitmap) {
             EXT2_ERROR("Failed to allocate block bitmap");
             return 0;
@@ -316,7 +316,7 @@ uint32_t ext2_allocate_block(struct ext2_partition* partition) {
 
         if (!ext2_read_block(partition, block_group->bg_block_bitmap, (uint8_t*)block_bitmap)) {
             EXT2_ERROR("Failed to read block bitmap");
-            free(block_bitmap);
+            kfree(block_bitmap);
             return 0;
         }
 
@@ -329,7 +329,7 @@ uint32_t ext2_allocate_block(struct ext2_partition* partition) {
                     ((struct ext2_superblock*)partition->sb)->s_free_blocks_count--;
                     if (ext2_write_block(partition, block_group->bg_block_bitmap, (uint8_t*)block_bitmap)  <= 0) {
                         EXT2_ERROR("Failed to write block bitmap");
-                        free(block_bitmap);
+                        kfree(block_bitmap);
                         //Undo the changes
                         block_group->bg_free_blocks_count++;
                         ((struct ext2_superblock*)partition->sb)->s_free_blocks_count++;
@@ -339,13 +339,13 @@ uint32_t ext2_allocate_block(struct ext2_partition* partition) {
                     ext2_flush_required(partition);
                     uint32_t block = j * 32 + k + 1;
                     block += i * ((struct ext2_superblock*)partition->sb)->s_blocks_per_group;
-                    free(block_bitmap);
+                    kfree(block_bitmap);
                     return block;
                 }
             }
         }
 
-        free(block_bitmap);
+        kfree(block_bitmap);
     }
 
     EXT2_ERROR("No free blocks");
@@ -355,7 +355,7 @@ uint32_t ext2_allocate_block(struct ext2_partition* partition) {
 uint32_t ext2_deallocate_blocks(struct ext2_partition* partition, uint32_t *blocks, uint32_t block_number) {
     uint32_t block_size = 1024 << (((struct ext2_superblock*)partition->sb)->s_log_block_size);
     uint32_t blocks_deallocated = 0;
-    uint8_t * block_bitmap = malloc(block_size);
+    uint8_t * block_bitmap = kmalloc(block_size);
     if (!block_bitmap) {
         EXT2_ERROR("Failed to allocate block bitmap");
         return 0;
@@ -365,14 +365,14 @@ uint32_t ext2_deallocate_blocks(struct ext2_partition* partition, uint32_t *bloc
     for (int i = block_number - 1; i >= 0; i--) {
         if (!ext2_deallocate_block(partition, blocks[i])) {
             EXT2_ERROR("Failed to deallocate block %d", blocks[i]);
-            free(block_bitmap);
+            kfree(block_bitmap);
             return 0;
         }
 
         blocks_deallocated++;
     }
 
-    free(block_bitmap);
+    kfree(block_bitmap);
     ext2_flush_required(partition);
     EXT2_DEBUG("Deallocated %d blocks", blocks_deallocated);
     return blocks_deallocated;
@@ -391,7 +391,7 @@ uint32_t ext2_deallocate_block(struct ext2_partition* partition, uint32_t block)
         return 0;
     }
 
-    uint32_t * block_bitmap = (uint32_t *)malloc(block_size);
+    uint32_t * block_bitmap = (uint32_t *)kmalloc(block_size);
     if (!block_bitmap) {
         EXT2_ERROR("Failed to allocate block bitmap");
         return 0;
@@ -399,7 +399,7 @@ uint32_t ext2_deallocate_block(struct ext2_partition* partition, uint32_t block)
     
     if (!ext2_read_block(partition, block_group_descriptor->bg_block_bitmap, (uint8_t*)block_bitmap)) {
         EXT2_ERROR("Failed to read block bitmap");
-        free(block_bitmap);
+        kfree(block_bitmap);
         return 0;
     }
 
@@ -409,7 +409,7 @@ uint32_t ext2_deallocate_block(struct ext2_partition* partition, uint32_t block)
         ((struct ext2_superblock*)partition->sb)->s_free_blocks_count++;
         if (ext2_write_block(partition, block_group_descriptor->bg_block_bitmap, (uint8_t*)block_bitmap)  <= 0) {
             EXT2_ERROR("Failed to write block bitmap");
-            free(block_bitmap);
+            kfree(block_bitmap);
             //Undo the changes
             block_group_descriptor->bg_free_blocks_count--;
             ((struct ext2_superblock*)partition->sb)->s_free_blocks_count--;
@@ -417,11 +417,11 @@ uint32_t ext2_deallocate_block(struct ext2_partition* partition, uint32_t block)
         }
 
         ext2_flush_required(partition);
-        free(block_bitmap);
+        kfree(block_bitmap);
         return 1;
     }
 
-    free(block_bitmap);
+    kfree(block_bitmap);
     return 0;
 }
 
@@ -438,7 +438,7 @@ uint32_t ext2_allocate_indirect_block(struct ext2_partition* partition, uint32_t
             return 0;
         }
 
-        uint32_t * block_buffer = (uint32_t *)malloc(block_size);
+        uint32_t * block_buffer = (uint32_t *)kmalloc(block_size);
         if (!block_buffer) {
             EXT2_ERROR("Failed to allocate memory for block buffer");
             return 0;
@@ -450,7 +450,7 @@ uint32_t ext2_allocate_indirect_block(struct ext2_partition* partition, uint32_t
             block_buffer[j] = ext2_allocate_block(partition);
             if (!block_buffer[j]) {
                 EXT2_ERROR("Failed to allocate block");
-                free(block_buffer);
+                kfree(block_buffer);
                 return 0;
             }
             blocks_written++;
@@ -458,11 +458,11 @@ uint32_t ext2_allocate_indirect_block(struct ext2_partition* partition, uint32_t
 
         if (ext2_write_block(partition, *target_block, (uint8_t*)block_buffer) <= 0) {
             EXT2_ERROR("Failed to write block");
-            free(block_buffer);
+            kfree(block_buffer);
             return 0;
         }
 
-        free(block_buffer);
+        kfree(block_buffer);
         return blocks_written;
 }
 
@@ -479,7 +479,7 @@ uint32_t ext2_allocate_double_indirect_block(struct ext2_partition* partition, u
         return 0;
     }
 
-    uint32_t * block_buffer = (uint32_t *)malloc(block_size);
+    uint32_t * block_buffer = (uint32_t *)kmalloc(block_size);
     if (!block_buffer) {
         EXT2_ERROR("Failed to allocate memory for block buffer");
         return 0;
@@ -493,11 +493,11 @@ uint32_t ext2_allocate_double_indirect_block(struct ext2_partition* partition, u
 
     if (ext2_write_block(partition, *target_block, (uint8_t*)block_buffer) <= 0) {
         EXT2_ERROR("Failed to write block");
-        free(block_buffer);
+        kfree(block_buffer);
         return 0;
     }
 
-    free(block_buffer);
+    kfree(block_buffer);
     return blocks_written;
 }
 
@@ -514,7 +514,7 @@ uint32_t ext2_allocate_triple_indirect_block(struct ext2_partition* partition, u
         return 0;
     }
 
-    uint32_t * block_buffer = (uint32_t *)malloc(block_size);
+    uint32_t * block_buffer = (uint32_t *)kmalloc(block_size);
     if (!block_buffer) {
         EXT2_ERROR("Failed to allocate memory for block buffer");
         return 0;
@@ -528,11 +528,11 @@ uint32_t ext2_allocate_triple_indirect_block(struct ext2_partition* partition, u
 
     if (ext2_write_block(partition, *target_block, (uint8_t*)block_buffer) <= 0) {
         EXT2_ERROR("Failed to write block");
-        free(block_buffer);
+        kfree(block_buffer);
         return 0;
     }
 
-    free(block_buffer);
+    kfree(block_buffer);
     return blocks_written;
 }
 
@@ -640,7 +640,7 @@ int64_t ext2_read_inode_bytes(struct ext2_partition* partition, uint32_t inode_n
     EXT2_DEBUG("reading %ld bytes from ino: %d to %p [skip_blocks: %ld, skip_bytes: %ld, excess_bytes: %ld]", count, inode_number, (void*)destination_buffer, skip_blocks, skip_bytes, excess_bytes);
 
     if (skip_bytes) {
-        uint8_t * temp_buffer = (uint8_t *)malloc(block_size);
+        uint8_t * temp_buffer = (uint8_t *)kmalloc(block_size);
         int64_t skip_read_result = ext2_read_inode_blocks(partition, inode_number, temp_buffer, 1, skip_blocks);
         if (skip_read_result != 1) {
             EXT2_ERROR("Failed to read skip bytes");
@@ -648,7 +648,7 @@ int64_t ext2_read_inode_bytes(struct ext2_partition* partition, uint32_t inode_n
         }
 
         memcpy(destination_buffer, temp_buffer + skip_bytes, block_size - skip_bytes);
-        free(temp_buffer);
+        kfree(temp_buffer);
         destination_buffer += block_size - skip_bytes;
         skip_blocks++;
         read_bytes += block_size - skip_bytes;
@@ -671,14 +671,14 @@ int64_t ext2_read_inode_bytes(struct ext2_partition* partition, uint32_t inode_n
     }
 
     if (remaining_bytes > 0) {
-        uint8_t * temp_buffer = (uint8_t *)malloc(block_size);
+        uint8_t * temp_buffer = (uint8_t *)kmalloc(block_size);
         int64_t remaining_read_result = ext2_read_inode_blocks(partition, inode_number, temp_buffer, 1, skip_blocks);
         if (remaining_read_result != 1) {
             EXT2_ERROR("Failed to read remaining bytes");
             return EXT2_READ_FAILED;
         }
         memcpy(destination_buffer, temp_buffer, remaining_bytes);
-        free(temp_buffer);
+        kfree(temp_buffer);
         read_bytes += remaining_bytes;
     }
 
@@ -745,7 +745,7 @@ int64_t ext2_write_inode_bytes(struct ext2_partition* partition, uint32_t inode_
     EXT2_DEBUG("writing %ld bytes to ino: %d from %p [skip_blocks: %ld, skip_bytes: %ld, excess_bytes: %ld]", count, inode_number, (void*)source_buffer, skip_blocks, skip_bytes, excess_bytes);
 
     if (skip_bytes) {
-        uint8_t * temp_buffer = (uint8_t *)malloc(block_size);
+        uint8_t * temp_buffer = (uint8_t *)kmalloc(block_size);
         int64_t skip_read_result = ext2_read_inode_blocks(partition, inode_number, temp_buffer, 1, skip_blocks);
         if (skip_read_result != 1) {
             EXT2_ERROR("Failed to read skip bytes");
@@ -763,7 +763,7 @@ int64_t ext2_write_inode_bytes(struct ext2_partition* partition, uint32_t inode_
             EXT2_ERROR("Failed to write skip bytes");
             return EXT2_WRITE_FAILED;
         }
-        free(temp_buffer);
+        kfree(temp_buffer);
         source_buffer += block_size - skip_bytes;
         skip_blocks++;
         written_bytes += block_size - skip_bytes;
@@ -790,7 +790,7 @@ int64_t ext2_write_inode_bytes(struct ext2_partition* partition, uint32_t inode_
 
     if (remaining_bytes > 0) {
         EXT2_WARN("Writing third stage, remaining bytes: %ld", remaining_bytes);
-        uint8_t * temp_buffer = (uint8_t *)malloc(block_size);
+        uint8_t * temp_buffer = (uint8_t *)kmalloc(block_size);
         int64_t remaining_read_result = ext2_read_inode_blocks(partition, inode_number, temp_buffer, 1, skip_blocks);
         if (remaining_read_result != 1) {
             EXT2_ERROR("Failed to read remaining bytes");
@@ -802,7 +802,7 @@ int64_t ext2_write_inode_bytes(struct ext2_partition* partition, uint32_t inode_
             EXT2_ERROR("Failed to write remaining bytes");
             return EXT2_WRITE_FAILED;
         }
-        free(temp_buffer);
+        kfree(temp_buffer);
         written_bytes += remaining_bytes;
         EXT2_WARN("Partial write of %ld bytes", remaining_bytes);
     }

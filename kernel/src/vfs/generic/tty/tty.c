@@ -6,7 +6,7 @@
 
 struct vfs_tty* tty_register_device(const char * device, uint32_t mode, const char * mountpoint) {
 
-    struct vfs_tty* tty = (struct vfs_tty*)calloc(1, sizeof(struct vfs_tty));
+    struct vfs_tty* tty = (struct vfs_tty*)kcalloc(1, sizeof(struct vfs_tty));
     if (!tty) return 0;
 
     if (!tty_validate(device)) return 0;
@@ -21,7 +21,7 @@ struct vfs_tty* tty_register_device(const char * device, uint32_t mode, const ch
 
 void tty_unregister_device(struct vfs_tty* tty) {
     if (!tty) return;
-    free(tty);
+    kfree(tty);
 }
 
 uint8_t tty_search(const char* name) {

@@ -6,13 +6,13 @@
 #include "../../util/string.h"
 
 uint64_t tty_dd_read_block_direct(struct tty* dev, uint64_t size, uint64_t skip, uint8_t* buffer) {
-    char * skip_buffer = malloc(skip);
+    char * skip_buffer = kmalloc(skip);
     if ((uint64_t)(int)skip != skip) {
         printf("Warning: Skipping more than 2^32 bytes in _tty_read\n");
     }
 
     _tty_read(dev, skip_buffer, (int)skip);
-    free(skip_buffer);
+    kfree(skip_buffer);
     if ((uint64_t)(int)size != size) {
         printf("Warning: Reading more than 2^32 bytes in _tty_read\n");
     }
@@ -35,12 +35,12 @@ uint64_t tty_dd_read_block(uint64_t port, uint64_t size, uint64_t skip, uint8_t*
     struct tty* device = get_tty((int)port);
     if (!is_valid_tty(device)) return 0;
 
-    char * skip_buffer = malloc(skip);
+    char * skip_buffer = kmalloc(skip);
     if ((uint64_t)(int)skip != skip) {
         printf("Warning: Skipping more than 2^32 bytes in tty_dd_read_block\n");
     }
     _tty_read(device, skip_buffer, (int)skip);
-    free(skip_buffer);
+    kfree(skip_buffer);
     if ((uint64_t)(int)size != size) {
         printf("Warning: Reading more than 2^32 bytes in tty_dd_read_block\n");
     }

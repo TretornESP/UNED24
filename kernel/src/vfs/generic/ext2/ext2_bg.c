@@ -50,7 +50,7 @@ uint8_t ext2_dump_bg(struct ext2_partition* partition, struct ext2_block_group_d
     printf("  Directories entries: %d\n", bg->bg_used_dirs_count);
 
     printf("Dumping block bitmap:\n");
-    uint8_t * block_bitmap = malloc(block_size);
+    uint8_t * block_bitmap = kmalloc(block_size);
     if (block_bitmap == 0) {
         EXT2_ERROR("Failed to allocate block bitmap");
         return 1;
@@ -67,7 +67,7 @@ uint8_t ext2_dump_bg(struct ext2_partition* partition, struct ext2_block_group_d
     printf("\n");
 
     printf("Dumping inode bitmap:\n");
-    uint8_t * inode_bitmap = malloc(block_size);
+    uint8_t * inode_bitmap = kmalloc(block_size);
     if (inode_bitmap == 0) {
         EXT2_ERROR("Failed to allocate inode bitmap");
         return 1;
@@ -83,8 +83,8 @@ uint8_t ext2_dump_bg(struct ext2_partition* partition, struct ext2_block_group_d
     }
     printf("\n");
 
-    free(block_bitmap);
-    free(inode_bitmap);
+    kfree(block_bitmap);
+    kfree(inode_bitmap);
     return 0;
 }
 

@@ -83,10 +83,10 @@ uint8_t fat32exp_compat_detect_partition(const char* name, uint32_t lba) {
 }
 
 uint64_t file_open(const char* path, int mode, int flags) {
-    FIL* file = malloc(sizeof(FIL));
+    FIL* file = kmalloc(sizeof(FIL));
     FRESULT res = f_open(file, path, mode);
     if (res != FR_OK) {
-        free(file);
+        kfree(file);
         return -1;
     }
     return (uint64_t)file;

@@ -211,30 +211,24 @@ void allocate_segment(Elf64_Phdr * program_header, void * buffer) {
 
     uint64_t vaddr_offset = program_header->p_vaddr & 0xfff;
     uint64_t vaddr = program_header->p_vaddr & ~0xfff;
+    printf("Vaddr: 0x%llx\n", vaddr);
 
     uint64_t total_size = program_header->p_memsz + vaddr_offset;
     uint64_t page_no = total_size / 0x1000;
     if (total_size % 0x1000) page_no++;
 
-    void * complete_buffer = malloc(page_no * 0x1000);
+    void * complete_buffer = umalloc(page_no * 0x1000);
     memset(complete_buffer, 0, page_no * 0x1000);
     memcpy(complete_buffer + vaddr_offset,  (void*)(buffer+program_header->p_offset), program_header->p_filesz);
 
     for (uint64_t i = 0; i < page_no; i++) {
         request_current_page_at((void*)(vaddr + i * 0x1000));
     }
+    //mprotect_current((void*)0x400000, 0x410000, PAGE_USER_BIT | PAGE_WRITE_BIT);
 
     memcpy((void*)vaddr, complete_buffer, total_size);
 
-    uint8_t flags = PAGE_USER_BIT;
-    flags |= (program_header->p_flags & PF_X) ? 0 : PAGE_NX_BIT;
-    flags |= (program_header->p_flags & PF_W) ? PAGE_WRITE_BIT : 0;
-
-    for (uint64_t i = 0; i< page_no; i++) {
-        mprotect_current((void*)(vaddr + i * 0x1000), 0x1000, flags);
-    }
-
-    free(complete_buffer);
+    ufree(complete_buffer);
 }
 
 uint8_t elf_load_elf(uint8_t * buffer, uint64_t size, void* env) {

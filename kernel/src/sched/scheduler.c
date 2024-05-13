@@ -238,7 +238,7 @@ struct task* get_current_task() {
 void go(uint32_t preempt) {
     //TODO: Implement the real version
     __asm__ volatile("cli");
-    boot_task = malloc(sizeof(struct task));
+    boot_task = kmalloc(sizeof(struct task));
     memset(boot_task, 0, sizeof(struct task));
 
     if (preempt) {
@@ -313,7 +313,7 @@ void add_signal(int16_t pid, int signal, void * data, uint64_t size) {
     }
 
     //Add signal to signal_queue linked list
-    struct task_signal * signal_struct = malloc(sizeof(struct task_signal));
+    struct task_signal * signal_struct = kmalloc(sizeof(struct task_signal));
     signal_struct->signal = signal;
     signal_struct->next = 0;
     signal_struct->signal_data = data;
@@ -335,7 +335,7 @@ void add_signal(int16_t pid, int signal, void * data, uint64_t size) {
 struct task* create_task(void * init_func, const char * tty, uint8_t privilege) {
     lock_scheduler();
 
-    struct task * task = malloc(sizeof(struct task));
+    struct task * task = kmalloc(sizeof(struct task));
     task->state = TASK_READY;
     task->flags = 0;
     task->sigpending = 0;
@@ -368,7 +368,7 @@ struct task* create_task(void * init_func, const char * tty, uint8_t privilege) 
     task->gid = 0;
 
     task->locks = 0;
-    task->open_files = malloc(sizeof(int) * 32);
+    task->open_files = kmalloc(sizeof(int) * 32);
     memset(task->open_files, -1, sizeof(int) * 32);
     if (task->open_files == 0) {
         printf("Failed to allocate open_files");
@@ -392,18 +392,24 @@ struct task* create_task(void * init_func, const char * tty, uint8_t privilege) 
     }
 
     task->entry = init_func;
-    task->stack_base = (uint64_t)stackalloc(STACK_SIZE);
-    task->stack_top = task->stack_base + STACK_SIZE;
-    task->alt_stack_base = (uint64_t)stackalloc(KERNEL_STACK_SIZE);
-    task->alt_stack_top = task->alt_stack_base + KERNEL_STACK_SIZE;
+
+
     //Create a stack frame (do not use structs)
     //Set r12-r15 to 0, rbx to 0
     //Set rip to init_func
     if (task->privilege == KERNEL_TASK) {
+        task->stack_base = (uint64_t)kstackalloc(KERNEL_STACK_SIZE);
+        task->stack_top = task->stack_base + KERNEL_STACK_SIZE;
+        task->alt_stack_base = (uint64_t)ustackalloc(USER_STACK_SIZE);
+        task->alt_stack_top = task->alt_stack_base + USER_STACK_SIZE;
         ctxcreat(&(task->stack_top), init_func, task->fxsave_region);
         task->cs = get_kernel_code_selector();
         task->ds = get_kernel_data_selector();
     } else {
+        task->stack_base = (uint64_t)ustackalloc(USER_STACK_SIZE);
+        task->stack_top = task->stack_base + USER_STACK_SIZE;
+        task->alt_stack_base = (uint64_t)kstackalloc(KERNEL_STACK_SIZE);
+        task->alt_stack_top = task->alt_stack_base + KERNEL_STACK_SIZE;
         uctxcreat(&(task->stack_top), init_func, task->fxsave_region);
         task->cs = get_user_code_selector();
         task->ds = get_user_data_selector();
@@ -490,7 +496,7 @@ void process_loop() {
                     current_task->signal_handlers[current->signal](current->signal, current->signal_data, current->signal_data_size);
                 }
                 struct task_signal * next = current->next;
-                free(current);
+                kfree(current);
                 current = next;
             }
             current_task->signal_queue = 0;

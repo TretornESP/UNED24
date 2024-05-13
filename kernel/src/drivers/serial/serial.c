@@ -105,7 +105,7 @@ void add_subscriber(struct serial_device* device, uint8_t type, void* parent, vo
       subscriber = subscriber->next;
    }
 
-   subscriber->next = malloc(sizeof(struct serial_subscriber));
+   subscriber->next = kmalloc(sizeof(struct serial_subscriber));
    subscriber->next->handler = handler;
    subscriber->next->parent = parent;
    subscriber->next->next = 0;
@@ -125,7 +125,7 @@ void remove_subscriber(struct serial_device* device, uint8_t type, void* parent,
       if (subscriber->next->handler == handler && subscriber->next->parent == parent) {
          struct serial_subscriber* to_remove = subscriber->next;
          subscriber->next = subscriber->next->next;
-         free(to_remove);
+         kfree(to_remove);
          return;
       }
       subscriber = subscriber->next;
@@ -294,17 +294,17 @@ void init_serial(int inbs, int outbs) {
       if (init_serial_comm(device->port)) {
          device->inb_size = inbs;
          device->outb_size = outbs;
-         device->inb = (char*)calloc(1, inbs);
+         device->inb = (char*)kcalloc(1, inbs);
          memset(device->inb, 0, inbs);
-         device->outb = (char*)calloc(1, outbs);
+         device->outb = (char*)kcalloc(1, outbs);
          memset(device->outb, 0, outbs);
          device->echo = 0;
          device->inb_read = 0;
          device->outb_read = 0;
          device->inb_write = 0;
          device->outb_write = 0;
-         device->read_subscribers = malloc(sizeof(struct serial_subscriber));
-         device->write_subscribers = malloc(sizeof(struct serial_subscriber));
+         device->read_subscribers = kmalloc(sizeof(struct serial_subscriber));
+         device->write_subscribers = kmalloc(sizeof(struct serial_subscriber));
          device->read_subscribers->next = 0;
          device->write_subscribers->next = 0;
          device->read_subscribers->handler = 0;

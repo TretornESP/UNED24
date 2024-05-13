@@ -76,7 +76,7 @@ struct page_directory* duplicate_current_pml4();
 struct page_directory* get_pml4();
 
 void* swap_pml4(void*);
-
+void invalidate_current_pml4();
 void map_current_memory(void*, void*);
 void map_memory(struct page_directory*, void*, void*);
 

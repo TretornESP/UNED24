@@ -8,7 +8,7 @@
 void register_comm() {
     init_serial(SERIAL_RX_BUFFER_SIZE, SERIAL_TX_BUFFER_SIZE);
     int port_count = serial_count_ports();
-    int *port_buffer = malloc(sizeof(int) * port_count);
+    int *port_buffer = kmalloc(sizeof(int) * port_count);
     serial_get_ports(port_buffer);
 
     for (int i = 0; i < port_count; i++) {
@@ -19,5 +19,5 @@ void register_comm() {
             device_create((void*)tty, TTY_MAJOR, index);
         }
     }
-    free(port_buffer);
+    kfree(port_buffer);
 }

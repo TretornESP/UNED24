@@ -86,13 +86,13 @@ void readelf(int argc, char* argv[]) {
     uint64_t size = vfs_file_tell(fd);
     vfs_file_seek(fd, 0, 0x0); //SEEK_SET
 
-    uint8_t* buf = malloc(size);
+    uint8_t* buf = kmalloc(size);
     memset(buf, 0, size);
     vfs_file_read(fd, buf, size);
     vfs_file_close(fd);
 
     elf_readelf(buf, size);
-    free(buf);
+    kfree(buf);
 }
 
 void loadelf(int argc, char* argv[]) {
@@ -112,13 +112,14 @@ void loadelf(int argc, char* argv[]) {
     uint64_t size = vfs_file_tell(fd);
     vfs_file_seek(fd, 0, 0x0); //SEEK_SET
 
-    uint8_t* buf = malloc(size);
+    uint8_t* buf = kmalloc(size);
     memset(buf, 0, size);
     vfs_file_read(fd, buf, size);
     vfs_file_close(fd);
 
     elf_load_elf(buf, size, 0);
-    free(buf);
+
+    kfree(buf);
 }
 
 void loadraw(int argc, char* argv[]) {
@@ -138,7 +139,7 @@ void loadraw(int argc, char* argv[]) {
     uint64_t size = vfs_file_tell(fd);
     vfs_file_seek(fd, 0, 0x0); //SEEK_SET
 
-    uint8_t* buf = malloc(size);
+    uint8_t* buf = kmalloc(size);
     memset(buf, 0, size);
     vfs_file_read(fd, buf, size);
     vfs_file_close(fd);
@@ -147,7 +148,7 @@ void loadraw(int argc, char* argv[]) {
     uint64_t addr = atou64(argv[2]);
 
     load_and_execute(buf, addr, size);
-    free(buf);
+    kfree(buf);
 }
 
 //This function receives a relative path and returns an absolute path
@@ -283,7 +284,7 @@ void readd(int argc, char* argv[]) {
     printf("Reading %d bytes from %s offset: %d\n", size, argv[1], offset);
 
     vfs_file_seek(fd, offset, 0x0); //SEEK_SET
-    uint8_t* buf = malloc(size);
+    uint8_t* buf = kmalloc(size);
     memset(buf, 0, size);
     vfs_file_read(fd, buf, size);
     vfs_file_close(fd);
@@ -298,7 +299,7 @@ void readd(int argc, char* argv[]) {
     }
     printf("\n");
 
-    free(buf);
+    kfree(buf);
 }
 
 void read(int argc, char* argv[]) {
@@ -333,13 +334,13 @@ void read(int argc, char* argv[]) {
     printf("Reading %d bytes from %s offset: %d\n", size, workpath, offset);
 
     vfs_file_seek(fd, offset, 0x0); //SEEK_SET
-    uint8_t* buf = malloc(size);
+    uint8_t* buf = kmalloc(size);
     memset(buf, 0, size);
     vfs_file_read(fd, buf, size);
     vfs_file_close(fd);
 
     printf("%s\n", buf);
-    free(buf);
+    kfree(buf);
 }
 
 void write(int argc, char* argv[]) {
@@ -483,7 +484,7 @@ void ioctl(int argc, char* argv[]) {
     }
 
     uint64_t bsize = atou64(argv[3]);
-    uint8_t* buffer = malloc(bsize);
+    uint8_t* buffer = kmalloc(bsize);
     memset(buffer, 0, bsize);
     if (argc > 4) {
         for (int i = 4; i < argc; i++) {
@@ -511,7 +512,7 @@ void ioctl(int argc, char* argv[]) {
         }
     }
     printf("\n");
-    free(buffer);
+    kfree(buffer);
 }
 
 void cd(int argc, char* argv[]) {

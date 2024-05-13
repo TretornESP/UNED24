@@ -196,7 +196,7 @@ struct ext2_partition * ext2_partition_register_partition(const char* disk, uint
     EXT2_DEBUG("Block group descriptors size: %d", block_group_descriptors_size);
     //TODO: End of sanity check
 
-    void * block_group_descriptor_buffer = malloc(block_group_descriptors_size * sector_size);
+    void * block_group_descriptor_buffer = kmalloc(block_group_descriptors_size * sector_size);
 
     if (!read_disk(disk, (uint8_t*)block_group_descriptor_buffer, lba+(sectors_per_block*bgdt_block), block_group_descriptors_size*sector_size)) {
         EXT2_ERROR("Failed to read block group descriptor table");
@@ -211,14 +211,14 @@ struct ext2_partition * ext2_partition_register_partition(const char* disk, uint
     uint32_t partition_id = 0;
 
     if (partition == 0) {
-        ext2_partition_head = malloc(sizeof(struct ext2_partition));
+        ext2_partition_head = kmalloc(sizeof(struct ext2_partition));
         partition = ext2_partition_head;
     } else {
         while (partition->next != 0) {
             partition = partition->next;
             partition_id++;
         }
-        partition->next = malloc(sizeof(struct ext2_partition));
+        partition->next = kmalloc(sizeof(struct ext2_partition));
         partition = partition->next;
     }
 
@@ -229,13 +229,13 @@ struct ext2_partition * ext2_partition_register_partition(const char* disk, uint
     partition->sector_size = sector_size;
     memcpy(partition->backup_bgs, backup_bgs, 64*sizeof(int32_t));
     partition->backup_bgs_count = backup_bgs_count;
-    partition->sb = malloc(1024);
+    partition->sb = kmalloc(1024);
     partition->flush_required = 0;
     partition->sb_block = SB_OFFSET_LBA;
     partition->bgdt_block = bgdt_block; 
     partition->next = 0;
     memcpy(partition->sb, superblock, 1024);
-    partition->gd = malloc(block_group_descriptors_size * sector_size);
+    partition->gd = kmalloc(block_group_descriptors_size * sector_size);
     memcpy(partition->gd, block_group_descriptor, block_group_descriptors_size * sector_size);
 
     EXT2_DEBUG("Partition %s has: %d groups", partition->name, block_groups_first);

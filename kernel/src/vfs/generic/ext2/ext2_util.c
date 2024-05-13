@@ -15,7 +15,7 @@ uint8_t * ext2_buffer_for_size(uint32_t block_size, uint64_t size) {
     uint32_t blocks_for_size = DIVIDE_ROUNDED_UP(size, block_size);
     uint32_t buffer_size = blocks_for_size * block_size;
 
-    return malloc(buffer_size);
+    return kmalloc(buffer_size);
 }
 
 void epoch_to_date(char* date, uint32_t epoch) {
@@ -58,19 +58,19 @@ uint8_t ext2_path_to_parent_and_name(const char* source, char** path, char** nam
     }
 
     if (last_slash == 0) {
-        *path = (char*)malloc(2);
+        *path = (char*)kmalloc(2);
         (*path)[0] = '/';
         (*path)[1] = 0;
-        *name = (char*)malloc(path_length + 1);
+        *name = (char*)kmalloc(path_length + 1);
         memcpy(*name, source+1, path_length + 1);
         return 1;
     }
 
-    *path = (char*)malloc(last_slash + 1);
+    *path = (char*)kmalloc(last_slash + 1);
     memcpy(*path, source, last_slash);
     (*path)[last_slash] = 0;
 
-    *name = (char*)malloc(path_length - last_slash);
+    *name = (char*)kmalloc(path_length - last_slash);
     memcpy(*name, source + last_slash + 1, path_length - last_slash);
     return 1;
 }

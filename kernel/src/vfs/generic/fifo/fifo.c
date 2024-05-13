@@ -7,7 +7,7 @@
 
 struct vfs_fifo* fifo_register_device(const char * device, uint32_t mode, const char * mountpoint) {
 
-    struct vfs_fifo* fifo = (struct vfs_fifo*)calloc(1, sizeof(struct vfs_fifo));
+    struct vfs_fifo* fifo = (struct vfs_fifo*)kcalloc(1, sizeof(struct vfs_fifo));
     if (!fifo) return 0;
     
     snprintf(fifo->name, 32, "%s", mountpoint);
@@ -19,7 +19,7 @@ struct vfs_fifo* fifo_register_device(const char * device, uint32_t mode, const 
 
 void fifo_unregister_device(struct vfs_fifo* fifo) {
     if (!fifo) return;
-    free(fifo);
+    kfree(fifo);
 }
 
 uint8_t fifo_search(const char* name) {

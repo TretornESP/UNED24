@@ -133,7 +133,7 @@ struct line_discipline_action_table_entry default_ld_table[] = {
 };
 
 struct line_discipline * line_discipline_create(int mode, int echo, int table, int buffer_size, void* parent, void (*flush_cb)(void* parent, char *buffer, int size), void (*echo_cb)(void* parent, char c)) {
-    struct line_discipline *ld = (struct line_discipline *) malloc(sizeof(struct line_discipline));
+    struct line_discipline *ld = (struct line_discipline *) kmalloc(sizeof(struct line_discipline));
     if (ld == 0) return 0;
 
     if (mode == LINE_DISCIPLINE_MODE_RAW || mode == LINE_DISCIPLINE_MODE_CANONICAL) ld->mode = mode;
@@ -142,9 +142,9 @@ struct line_discipline * line_discipline_create(int mode, int echo, int table, i
     if (echo == LINE_DISCIPLINE_MODE_ECHO_ON || echo == LINE_DISCIPLINE_MODE_ECHO_OFF) ld->echo = echo;
     else ld->echo = LINE_DISCIPLINE_MODE_ECHO_ON;
 
-    ld->buffer = (char*) malloc(sizeof(char) * buffer_size);
+    ld->buffer = (char*) kmalloc(sizeof(char) * buffer_size);
     if (ld->buffer == 0) {
-        free(ld);
+        kfree(ld);
         return 0;
     }
 
@@ -192,8 +192,8 @@ void line_discipline_insert(struct line_discipline* ld, char c) {
 
 void line_discipline_destroy(struct line_discipline *ld) {
     if (ld == 0) return;
-    if (ld->buffer) free(ld->buffer);
-    free(ld);
+    if (ld->buffer) kfree(ld->buffer);
+    kfree(ld);
 }
 
 void line_discipline_set_mode(struct line_discipline *ld, int mode) {

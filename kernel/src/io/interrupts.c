@@ -26,6 +26,11 @@ volatile int dynamic_interrupt = -1;
 
 void (*dynamic_interrupt_handlers[256])(struct cpu_context* ctx, uint8_t cpuid) = {0};
 
+__attribute__((interrupt)) void DoubleFault_Handler(struct cpu_context* frame) {
+    (void)frame;
+    panic("Double fault detected\n");
+}
+
 void pic_eoi(unsigned char irq) {
     if (irq >= 12) {
         outb(PIC2_COMMAND, PIC_EOI);
@@ -83,12 +88,6 @@ void PageFault_Handler(struct cpu_context* ctx, uint8_t cpuid) {
     __asm__ volatile("mov %%cr2, %0" : "=r" (faulting_address));
     printf("Page Fault Address: %x\n", faulting_address);
     panic("Page fault\n");
-}
-
-void DoubleFault_Handler(struct cpu_context* ctx, uint8_t cpuid) {
-    (void)ctx;
-    (void)cpuid;
-    panic("Double fault\n");
 }
 
 void GPFault_Handler(struct cpu_context* ctx, uint8_t cpuid) {
@@ -172,11 +171,12 @@ void init_interrupts() {
         set_idt_gate((uint64_t)interrupt_vector[i], i, IDT_TA_InterruptGate, 0, get_kernel_code_selector());
     }
 
+    set_idt_gate((uint64_t)DoubleFault_Handler, 8, IDT_TA_InterruptGate, 1, get_kernel_code_selector());
+
     for (int i = 0; i < 32; i++) {
         dynamic_interrupt_handlers[i] = interrupt_exception_handler;
     }
 
-    dynamic_interrupt_handlers[0x8] = DoubleFault_Handler;    
     dynamic_interrupt_handlers[0xD] = GPFault_Handler;
     dynamic_interrupt_handlers[0xE] = PageFault_Handler;
     dynamic_interrupt_handlers[KBD_IRQ] = KeyboardInt_Handler;

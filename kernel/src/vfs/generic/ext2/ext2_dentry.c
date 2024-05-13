@@ -42,7 +42,7 @@ uint8_t ext2_delete_dentry(struct ext2_partition* partition, const char * path) 
     EXT2_DEBUG("Deleting file %s, inode: %d parent_inode: %d", path, target_inode_number, parent_inode_number);
     uint8_t deleted = 0;
     if (parent_inode->i_mode & INODE_TYPE_DIR) {
-        uint8_t *block_buffer = malloc(parent_inode->i_size + block_size);
+        uint8_t *block_buffer = kmalloc(parent_inode->i_size + block_size);
         if (block_buffer == 0) {
             EXT2_ERROR("Failed to allocate block buffer");
             return 1;
@@ -83,11 +83,11 @@ uint8_t ext2_delete_dentry(struct ext2_partition* partition, const char * path) 
                 return 1;
             }
 
-        free(block_buffer);
+        kfree(block_buffer);
     }
 
-    free(parent_path);
-    free(name);
+    kfree(parent_path);
+    kfree(name);
     
     if (!deleted) {
         EXT2_ERROR("Failed to delete file %s", path);
@@ -113,7 +113,7 @@ uint8_t ext2_dentry_get_dentry(struct ext2_partition* partition, const char* par
     }
 
     if (root_inode->i_mode & INODE_TYPE_DIR) {
-        uint8_t *block_buffer = malloc(root_inode->i_size + block_size);
+        uint8_t *block_buffer = kmalloc(root_inode->i_size + block_size);
         if (block_buffer == 0) {
             EXT2_ERROR("Failed to allocate block buffer");
             return 1;
@@ -131,7 +131,7 @@ uint8_t ext2_dentry_get_dentry(struct ext2_partition* partition, const char* par
             if (entry->inode != 0) {
                 if (strncmp(entry->name, name, entry->name_len) == 0) {
                     memcpy(entry, entry, sizeof(struct ext2_directory_entry));
-                    free(block_buffer);
+                    kfree(block_buffer);
                     return 0;
                 }
             }
@@ -139,7 +139,7 @@ uint8_t ext2_dentry_get_dentry(struct ext2_partition* partition, const char* par
             list_count++;
         }
        
-        free(block_buffer);
+        kfree(block_buffer);
     }
 
     return 1;
@@ -160,7 +160,7 @@ void ext2_list_dentry(struct ext2_partition* partition, const char * path) {
     }
 
     if (root_inode->i_mode & INODE_TYPE_DIR) {
-        uint8_t *block_buffer = malloc(root_inode->i_size + block_size);
+        uint8_t *block_buffer = kmalloc(root_inode->i_size + block_size);
         if (block_buffer == 0) {
             EXT2_ERROR("Failed to allocate block buffer");
             return;
@@ -181,7 +181,7 @@ void ext2_list_dentry(struct ext2_partition* partition, const char * path) {
             list_count++;
         }
        
-        free(block_buffer);
+        kfree(block_buffer);
     }
 }
 
@@ -200,7 +200,7 @@ uint32_t ext2_get_all_dirs(struct ext2_partition* partition, const char* parent_
     }
 
     if (root_inode->i_mode & INODE_TYPE_DIR) {
-        uint8_t *block_buffer = malloc(root_inode->i_size + block_size);
+        uint8_t *block_buffer = kmalloc(root_inode->i_size + block_size);
         if (block_buffer == 0) {
             EXT2_ERROR("Failed to allocate block buffer");
             return 0;
@@ -220,7 +220,7 @@ uint32_t ext2_get_all_dirs(struct ext2_partition* partition, const char* parent_
             }
             parsed_bytes += entry->rec_len;
         }
-        *entries = malloc(sizeof(struct ext2_directory_entry) * entry_count);
+        *entries = kmalloc(sizeof(struct ext2_directory_entry) * entry_count);
         if (*entries == 0) {
             EXT2_ERROR("Failed to allocate entries buffer");
             return 0;
@@ -236,7 +236,7 @@ uint32_t ext2_get_all_dirs(struct ext2_partition* partition, const char* parent_
             }
             parsed_bytes += entry->rec_len;
         }
-        free(block_buffer);
+        kfree(block_buffer);
         return entry_count;
     }
     return 0;
@@ -258,7 +258,7 @@ uint8_t ext2_operate_on_dentry(struct ext2_partition* partition, const char* pat
     }
 
     if (root_inode->i_mode & INODE_TYPE_DIR) {
-        uint8_t *block_buffer = malloc(root_inode->i_size + block_size);
+        uint8_t *block_buffer = kmalloc(root_inode->i_size + block_size);
         if (block_buffer == 0) {
             EXT2_ERROR("Failed to allocate block buffer");
             return 0;
@@ -275,13 +275,13 @@ uint8_t ext2_operate_on_dentry(struct ext2_partition* partition, const char* pat
             struct ext2_directory_entry *entry = (struct ext2_directory_entry *) (block_buffer + parsed_bytes);
             if (callback(partition, entry->inode)) {
                 EXT2_ERROR("Failed to operate on dentry");
-                free(block_buffer);
+                kfree(block_buffer);
                 return 1;
             }
             parsed_bytes += entry->rec_len;
         }
        
-        free(block_buffer);
+        kfree(block_buffer);
     }
 
     return 0;
@@ -319,7 +319,7 @@ uint8_t ext2_initialize_directory(struct ext2_partition* partition, uint32_t ino
     entries[1].rec_len = 1024 - entries[0].rec_len;
 
     uint32_t block_size = 1024 << (((struct ext2_superblock*)partition->sb)->s_log_block_size);
-    uint8_t *block_buffer = malloc(block_size);
+    uint8_t *block_buffer = kmalloc(block_size);
     if (block_buffer == 0) {
         EXT2_ERROR("Failed to allocate block buffer");
         return 1;
@@ -327,36 +327,36 @@ uint8_t ext2_initialize_directory(struct ext2_partition* partition, uint32_t ino
 
     if (memset(block_buffer, 0, block_size) == 0) {
         EXT2_ERROR("Failed to clear block buffer");
-        free(block_buffer);
+        kfree(block_buffer);
         return 1;
     }
 
     if (ext2_read_inode_bytes(partition, inode_number, block_buffer, root_inode->i_size, 0) == EXT2_READ_FAILED) {
         EXT2_ERROR("Failed to read directory inode");
-        free(block_buffer);
+        kfree(block_buffer);
         return 1;
     }
 
     if (memcpy(block_buffer, &entries[0], entry_size_first) == 0) {
         EXT2_ERROR("Failed to copy first directory entry");
-        free(block_buffer);
+        kfree(block_buffer);
         return 1;
     }
 
     if (memcpy(block_buffer + entries[0].rec_len, &entries[1], entry_size_second) == 0) {
         EXT2_ERROR("Failed to copy second directory entry");
-        free(block_buffer);
+        kfree(block_buffer);
         return 1;
     }
 
 
     if (ext2_write_inode_bytes(partition, inode_number, block_buffer, root_inode->i_size, 0) == EXT2_WRITE_FAILED) {
         EXT2_ERROR("Failed to write directory entry");
-        free(block_buffer);
+        kfree(block_buffer);
         return 1;
     }
 
-    free(block_buffer);
+    kfree(block_buffer);
     return 0;
 }
 
@@ -380,7 +380,7 @@ uint8_t ext2_create_directory_entry(struct ext2_partition* partition, uint32_t i
     child_entry.rec_len = (entry_size + 3) & ~3;
 
     if (root_inode->i_mode & INODE_TYPE_DIR) {
-        uint8_t *block_buffer = malloc(root_inode->i_size);
+        uint8_t *block_buffer = kmalloc(root_inode->i_size);
         if (block_buffer == 0) {
             EXT2_ERROR("Failed to allocate block buffer");
             return 1;
@@ -388,7 +388,7 @@ uint8_t ext2_create_directory_entry(struct ext2_partition* partition, uint32_t i
 
         if (ext2_read_inode_bytes(partition, inode_number, block_buffer, root_inode->i_size, 0) == EXT2_READ_FAILED) {
             EXT2_ERROR("Failed to read directory inode");
-            free(block_buffer);
+            kfree(block_buffer);
             return 1;
         }
 
@@ -402,7 +402,7 @@ uint8_t ext2_create_directory_entry(struct ext2_partition* partition, uint32_t i
 
         if (entry == 0) {
             EXT2_ERROR("No directory entries");
-            free(block_buffer);
+            kfree(block_buffer);
             return 1;
         }
 
@@ -411,7 +411,7 @@ uint8_t ext2_create_directory_entry(struct ext2_partition* partition, uint32_t i
 
         if (entry_size_aligned + child_entry.rec_len > entry->rec_len) {
             EXT2_ERROR("No space for directory entry");
-            free(block_buffer);
+            kfree(block_buffer);
             return 1;
         }
 
@@ -421,29 +421,29 @@ uint8_t ext2_create_directory_entry(struct ext2_partition* partition, uint32_t i
 
         if (memcpy(block_buffer + parsed_bytes - original_rec_len, entry, entry_size) == 0) {
             EXT2_ERROR("Failed to copy directory entry");
-            free(block_buffer);
+            kfree(block_buffer);
             return 1;
         }
 
         if (memcpy(block_buffer + parsed_bytes - original_rec_len + entry_size_aligned, &child_entry, sizeof(struct ext2_directory_entry) - EXT2_NAME_LEN) == 0) {
             EXT2_ERROR("Failed to copy directory entry");
-            free(block_buffer);
+            kfree(block_buffer);
             return 1;
         }
 
         if (memcpy(block_buffer + parsed_bytes - original_rec_len + entry_size_aligned + sizeof(struct ext2_directory_entry) - EXT2_NAME_LEN, name, child_entry.name_len) == 0) {
             EXT2_ERROR("Failed to copy directory entry");
-            free(block_buffer);
+            kfree(block_buffer);
             return 1;
         }
 
         if (ext2_write_inode_bytes(partition, inode_number, block_buffer, root_inode->i_size, 0) == EXT2_WRITE_FAILED) {
             EXT2_ERROR("Failed to write directory entry");
-            free(block_buffer);
+            kfree(block_buffer);
             return 1;
         }
 
-        free(block_buffer);
+        kfree(block_buffer);
         EXT2_DEBUG("Directory entry created");
         return 0;
     } else {

@@ -169,22 +169,22 @@ uint8_t ext2_get_dentry(struct ext2_partition* partition, const char* path, stru
         return EXT2_RESULT_ERROR;
     }
 
-    char * parent_path = malloc(strlen(path) + 1);
-    char * name = malloc(strlen(path) + 1);
+    char * parent_path = kmalloc(strlen(path) + 1);
+    char * name = kmalloc(strlen(path) + 1);
     if (split_into_path_and_name(path, parent_path, name) == 0) {
-        free(parent_path);
-        free(name);
+        kfree(parent_path);
+        kfree(name);
         return EXT2_RESULT_ERROR;
     }
 
     if (ext2_dentry_get_dentry(partition, parent_path, name, dentry)) {
-        free(parent_path);
-        free(name);
+        kfree(parent_path);
+        kfree(name);
         return EXT2_RESULT_ERROR;
     }
 
-    free(parent_path);
-    free(name);
+    kfree(parent_path);
+    kfree(name);
     return EXT2_RESULT_OK;
 }
 

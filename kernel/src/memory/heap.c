@@ -10,48 +10,56 @@
 #include "../util/string.h"
 #include "../util/panic.h"
 
-struct heap globalHeap;
-int ready = 0;
+struct heap kernelGlobalHeap;
+struct heap userGlobalHeap;
 
-void initHeap(void* heapAddress, void* stackAddress, uint64_t pageCount) {
-    globalHeap.heapEnd = heapAddress;
-    globalHeap.lastStack = stackAddress;
+void * _malloc(struct heap * cheap, uint64_t size);
+void expand_heap(struct heap * cheap, uint64_t length);
+
+void _initHeap(struct heap * cheap, void* heapAddress, void* stackAddress) {
+    cheap->heapEnd = heapAddress;
+    cheap->lastStack = stackAddress;
 
     void * newPhysicalAddress = request_page();
     if (!newPhysicalAddress) {
         panic("Failed to allocate heap\n");
     }
-    globalHeap.heapEnd = (void*)((uint64_t)globalHeap.heapEnd - PAGESIZE);
-    map_current_memory(globalHeap.heapEnd, newPhysicalAddress);
-    mprotect_current(globalHeap.heapEnd, PAGESIZE, PAGE_WRITE_BIT);
 
-    globalHeap.mainSegment = (struct heap_segment_header*)((uint64_t)globalHeap.heapEnd + ((uint64_t)PAGESIZE -sizeof(struct heap_segment_header)));
-    globalHeap.mainSegment->length = 0;
-    globalHeap.mainSegment->free = 0;
-    globalHeap.mainSegment->isStack = 0;
-    globalHeap.mainSegment->last = 0;
-    globalHeap.mainSegment->signature = HEAP_SIGNATURE;
-    globalHeap.mainSegment->next = (struct heap_segment_header*)((uint64_t)globalHeap.mainSegment - (uint64_t)PAGESIZE + sizeof(struct heap_segment_header));
+    uint8_t perms = PAGE_WRITE_BIT;
+    if (cheap == &userGlobalHeap) perms |= PAGE_USER_BIT;
 
-    globalHeap.mainSegment->next->free = 1;
-    globalHeap.mainSegment->next->isStack = 0;
-    globalHeap.mainSegment->next->length = (uint64_t)PAGESIZE - sizeof(struct heap_segment_header) - sizeof(struct heap_segment_header);
-    globalHeap.mainSegment->next->last = globalHeap.mainSegment;
-    globalHeap.mainSegment->next->next = 0;
-    globalHeap.mainSegment->next->signature = HEAP_SIGNATURE;
-    globalHeap.lastSegment = globalHeap.mainSegment->next;
+    cheap->heapEnd = (void*)((uint64_t)cheap->heapEnd - PAGESIZE);
+    map_current_memory(cheap->heapEnd, newPhysicalAddress);
+    mprotect_current(cheap->heapEnd, PAGESIZE, perms);
 
-    globalHeap.totalSize += PAGESIZE;
-    globalHeap.freeSize += PAGESIZE;
+    cheap->mainSegment = (struct heap_segment_header*)((uint64_t)cheap->heapEnd + ((uint64_t)PAGESIZE -sizeof(struct heap_segment_header)));
+    cheap->mainSegment->length = 0;
+    cheap->mainSegment->free = 0;
+    cheap->mainSegment->isStack = 0;
+    cheap->mainSegment->last = 0;
+    cheap->mainSegment->signature = HEAP_SIGNATURE;
+    cheap->mainSegment->next = (struct heap_segment_header*)((uint64_t)cheap->mainSegment - (uint64_t)PAGESIZE + sizeof(struct heap_segment_header));
+
+    cheap->mainSegment->next->free = 1;
+    cheap->mainSegment->next->isStack = 0;
+    cheap->mainSegment->next->length = (uint64_t)PAGESIZE - sizeof(struct heap_segment_header) - sizeof(struct heap_segment_header);
+    cheap->mainSegment->next->last = cheap->mainSegment;
+    cheap->mainSegment->next->next = 0;
+    cheap->mainSegment->next->signature = HEAP_SIGNATURE;
+    cheap->lastSegment = cheap->mainSegment->next;
+
+    cheap->totalSize += PAGESIZE;
+    cheap->freeSize += PAGESIZE;
+    cheap->ready = 1;
 }
 
-int heap_safeguard() {
-    return ready;
+int heap_safeguard(struct heap * cheap) {
+    return cheap->ready;
 }
 
-void *calloc (uint64_t num, uint64_t size) {
-    if (!ready) return 0;
-    void *ptr = malloc(num * size);
+void *_calloc (struct heap * cheap, uint64_t num, uint64_t size) {
+    if (!cheap->ready) return 0;
+    void *ptr = _malloc(cheap, num * size);
     memset(ptr, 0, num * size);
     return ptr;
 }
@@ -69,21 +77,21 @@ void dump_segment(struct heap_segment_header* segment) {
     printf("Signature at: %p value: %x\n", &(segment->signature), segment->signature);
 }
 
-void debug_heap() {
+void debug_heap(struct heap * cheap) {
     printf("Heap debug:\n");
-    printf("Total size: %d\n", globalHeap.totalSize);
-    printf("Free size: %d\n", globalHeap.freeSize);
-    printf("Used size: %d\n", globalHeap.usedSize);
-    printf("Heap end: %p\n", globalHeap.heapEnd);
+    printf("Total size: %d\n", cheap->totalSize);
+    printf("Free size: %d\n", cheap->freeSize);
+    printf("Used size: %d\n", cheap->usedSize);
+    printf("Heap end: %p\n", cheap->heapEnd);
     printf("Main segment:\n");
-    dump_segment(globalHeap.mainSegment);
+    dump_segment(cheap->mainSegment);
     printf("Last segment:\n");
-    dump_segment(globalHeap.lastSegment);
+    dump_segment(cheap->lastSegment);
 }
 
-struct heap_segment_header* splitSegment(struct heap_segment_header* segment, uint64_t size) {
+struct heap_segment_header* splitSegment(struct heap * cheap, struct heap_segment_header* segment, uint64_t size) {
     if (segment->length <= size + sizeof(struct heap_segment_header)) return 0;
-    if (segment->signature != HEAP_SIGNATURE) {ready = 0; panic("Invalid heap segment signature split");}
+    if (segment->signature != HEAP_SIGNATURE) {cheap->ready = 0; panic("Invalid heap segment signature split");}
     struct heap_segment_header* newSegment = (struct heap_segment_header*)(void*)((uint64_t)segment + segment->length - size);
     memset(newSegment, 0, sizeof(struct heap_segment_header));
     newSegment->free = 1;
@@ -93,7 +101,7 @@ struct heap_segment_header* splitSegment(struct heap_segment_header* segment, ui
     newSegment->signature = HEAP_SIGNATURE;
     newSegment->last = segment->last;
 
-    if (segment->next == 0) globalHeap.lastSegment = segment;
+    if (segment->next == 0) cheap->lastSegment = segment;
     if (segment->last != 0) segment->last->next = newSegment;
     segment->last = newSegment;
     segment->length -= size + sizeof(struct heap_segment_header);
@@ -101,8 +109,8 @@ struct heap_segment_header* splitSegment(struct heap_segment_header* segment, ui
     return newSegment;
 }
 
-void walk_heap() {
-    struct heap_segment_header* currentSegment = (struct heap_segment_header*)globalHeap.mainSegment;
+void walk_heap(struct heap * cheap) {
+    struct heap_segment_header* currentSegment = (struct heap_segment_header*)cheap->mainSegment;
     while(1) {
         if (currentSegment->signature != HEAP_SIGNATURE) {printf("***************** HEAP SIGNATURE INVALID BELOW *****************\n");}
         dump_segment(currentSegment);
@@ -111,8 +119,8 @@ void walk_heap() {
     }
 }
 
-void* malloc(uint64_t size) {
-    if (!ready) return 0;
+void* _malloc(struct heap * cheap, uint64_t size) {
+    if (!cheap->ready) return 0;
     if (size == 0) return 0;
 
     if ((size % 0x10) > 0) {
@@ -120,36 +128,35 @@ void* malloc(uint64_t size) {
         size += 0x10;
     }
 
-    struct heap_segment_header* currentSegment = (struct heap_segment_header*)globalHeap.mainSegment;
+    struct heap_segment_header* currentSegment = (struct heap_segment_header*)cheap->mainSegment;
     uint64_t sizeWithHeader = size + sizeof(struct heap_segment_header);
 
     while(1) {
-        if (currentSegment->signature != HEAP_SIGNATURE) {ready = 0; walk_heap(); panic("Invalid heap segment signature malloc");}
+        if (currentSegment->signature != HEAP_SIGNATURE) {cheap->ready = 0; walk_heap(cheap); panic("Invalid heap segment signature malloc");}
         if (currentSegment->free) {
             if (currentSegment->length > sizeWithHeader) {
-                currentSegment = splitSegment(currentSegment, size);
+                currentSegment = splitSegment(cheap, currentSegment, size);
                 currentSegment->free = 0;
-                globalHeap.usedSize += currentSegment->length + sizeof(struct heap_segment_header);
-                globalHeap.freeSize -= currentSegment->length + sizeof(struct heap_segment_header);
+                cheap->usedSize += currentSegment->length + sizeof(struct heap_segment_header);
+                cheap->freeSize -= currentSegment->length + sizeof(struct heap_segment_header);
                 return (void*)((uint64_t)currentSegment + sizeof(struct heap_segment_header));
             } else if (currentSegment->length == size) {
                 currentSegment->free = 0;
-                globalHeap.usedSize += currentSegment->length + sizeof(struct heap_segment_header);
-                globalHeap.freeSize -= currentSegment->length + sizeof(struct heap_segment_header);
+                cheap->usedSize += currentSegment->length + sizeof(struct heap_segment_header);
+                cheap->freeSize -= currentSegment->length + sizeof(struct heap_segment_header);
                 return (void*)((uint64_t)currentSegment + sizeof(struct heap_segment_header));
             }
         }
         if (currentSegment->next == 0) break;
-        if (currentSegment->next == currentSegment) {ready = 0; panic("Current segment cycle\n");}
+        if (currentSegment->next == currentSegment) {cheap->ready = 0; panic("Current segment cycle\n");}
         currentSegment = currentSegment->next;
     }
 
-    expand_heap(size);
-    return malloc(size);
+    expand_heap(cheap, size);
+    return _malloc(cheap, size);
 }
 
 void MergeThisToNext(struct heap_segment_header* header){
-    if (header->signature != HEAP_SIGNATURE) {ready = 0; panic("Invalid MergeThisToNext");}
     struct heap_segment_header* next = header->next;
     next->length += header->length + sizeof(struct heap_segment_header);
     next->last = header->last;
@@ -159,7 +166,6 @@ void MergeThisToNext(struct heap_segment_header* header){
 }
 
 void MergeLastToThis(struct heap_segment_header* header){
-    if (header->signature != HEAP_SIGNATURE) {ready = 0; panic("Invalid MergeLastToThis");}
     struct heap_segment_header* last = header->last;
     header->length += last->length + sizeof(struct heap_segment_header);
     header->last = last->last;
@@ -173,16 +179,16 @@ void MergeLastAndThisToNext(struct heap_segment_header* header){
     MergeThisToNext(header);
 }
 
-void free(void* address) {
-    if (!ready) return 0;
+void _free(struct heap * cheap, void* address) {
+    if (!cheap->ready) return 0;
     if (address == 0) return;
 
     struct heap_segment_header* header = (struct heap_segment_header*)((uint64_t)address - sizeof(struct heap_segment_header));
-    if (header->signature != HEAP_SIGNATURE) {ready = 0; panic("Invalid free, signature");}
-    if (header->free) {ready = 0; panic("Invalid free, double free");}
+    if (header->signature != HEAP_SIGNATURE) {cheap->ready = 0; panic("Invalid free, signature");}
+    if (header->free) {cheap->ready = 0; panic("Invalid free, double free");}
     header->free = 1;
-    globalHeap.freeSize += header->length + sizeof(struct heap_segment_header);
-    globalHeap.usedSize -= header->length + sizeof(struct heap_segment_header);
+    cheap->freeSize += header->length + sizeof(struct heap_segment_header);
+    cheap->usedSize -= header->length + sizeof(struct heap_segment_header);
 
     if (header->next != 0 && header->last != 0) {
         if (header->next->free && header->last->free) {
@@ -206,9 +212,9 @@ void free(void* address) {
     }
 }
 
-void* realloc(void* buffer, uint64_t size) {
-    if (!ready) return 0;
-    void* newBuffer = malloc(size);
+void* _realloc(struct heap * cheap, void* buffer, uint64_t size) {
+    if (!cheap->ready) return 0;
+    void* newBuffer = _malloc(cheap, size);
     if (newBuffer == 0) return 0;
     if (buffer == 0) return newBuffer;
 
@@ -216,12 +222,12 @@ void* realloc(void* buffer, uint64_t size) {
     if (size < oldSize) oldSize = size;
 
     memcpy(newBuffer, buffer, oldSize);
-    free(buffer);
+    _free(cheap, buffer);
 
     return newBuffer;
 }
 
-void expand_heap(uint64_t length) {
+void expand_heap(struct heap * cheap, uint64_t length) {
     length += sizeof(struct heap_segment_header);
     if (length % PAGESIZE) {
         length -= length % PAGESIZE;
@@ -232,66 +238,113 @@ void expand_heap(uint64_t length) {
     uint64_t pages = length / PAGESIZE;
     if (length % PAGESIZE) pages++;
 
+    uint8_t perms = PAGE_WRITE_BIT;
+    if (cheap == &userGlobalHeap) perms |= PAGE_USER_BIT;
+
     for (uint64_t i = 0; i < pages; i++) {
         void * newPage = request_page();
-        if (newPage == 0) {ready = 0; panic("Failed to expand heap");}
-        globalHeap.heapEnd = (void*)((uint64_t)globalHeap.heapEnd - (uint64_t)PAGESIZE);
-        map_current_memory(globalHeap.heapEnd, newPage);
+        if (newPage == 0) {cheap->ready = 0; panic("Failed to expand heap");}
+        cheap->heapEnd = (void*)((uint64_t)cheap->heapEnd - (uint64_t)PAGESIZE);
+        map_current_memory(cheap->heapEnd, newPage);
+        mprotect_current(cheap->heapEnd, PAGESIZE, perms);
     }
 
-    struct heap_segment_header* newSegment = (struct heap_segment_header*)globalHeap.heapEnd;
+    struct heap_segment_header* newSegment = (struct heap_segment_header*)cheap->heapEnd;
 
-    if (globalHeap.lastSegment != 0 && globalHeap.lastSegment->free && globalHeap.lastSegment->last != 0) {
-        uint64_t size = globalHeap.lastSegment->length + length;
+    if (cheap->lastSegment != 0 && cheap->lastSegment->free && cheap->lastSegment->last != 0) {
+        uint64_t size = cheap->lastSegment->length + length;
         newSegment->length = size - sizeof(struct heap_segment_header);
         newSegment->free = 1;
         newSegment->isStack = 0;
         newSegment->signature = HEAP_SIGNATURE;
-        newSegment->last = globalHeap.lastSegment->last;
+        newSegment->last = cheap->lastSegment->last;
         newSegment->last->next = newSegment;
         newSegment->next = 0;
-        globalHeap.lastSegment = newSegment;
+        cheap->lastSegment = newSegment;
     } else {
         newSegment->length = length - sizeof(struct heap_segment_header);
         newSegment->free = 1;
         newSegment->isStack = 0;
         newSegment->signature = HEAP_SIGNATURE;
-        newSegment->last = globalHeap.lastSegment;
+        newSegment->last = cheap->lastSegment;
         newSegment->next = 0;
-        if (globalHeap.lastSegment != 0) globalHeap.lastSegment->next = newSegment;
-        globalHeap.lastSegment = newSegment;
+        if (cheap->lastSegment != 0) cheap->lastSegment->next = newSegment;
+        cheap->lastSegment = newSegment;
     }
 
-    globalHeap.totalSize += (length + sizeof(struct heap_segment_header));
-    globalHeap.freeSize += (length + sizeof(struct heap_segment_header));
+    cheap->totalSize += (length + sizeof(struct heap_segment_header));
+    cheap->freeSize += (length + sizeof(struct heap_segment_header));
 }
 
-void* stackalloc(uint64_t length) {
+void* _stackalloc(struct heap * cheap, uint64_t length) {
     uint64_t pages = length / PAGESIZE;
     if (length % PAGESIZE) pages++;
 
-    globalHeap.lastStack = (void*)((uint64_t)globalHeap.lastStack - (uint64_t)PAGESIZE);
-    
+    cheap->lastStack = (void*)((uint64_t)cheap->lastStack - (uint64_t)PAGESIZE);
+    uint8_t perms = PAGE_WRITE_BIT;
+    if (cheap == &userGlobalHeap) perms |= PAGE_USER_BIT;
+
     for (uint64_t i = 0; i < pages; i++) {
         void * newPage = request_page();
         if (newPage == 0) panic("Out of memory");
-        globalHeap.lastStack = (void*)((uint64_t)globalHeap.lastStack - (uint64_t)PAGESIZE);
-        map_current_memory(globalHeap.lastStack, newPage);
-        mprotect_current(globalHeap.lastStack, PAGESIZE, PAGE_WRITE_BIT);
+        cheap->lastStack = (void*)((uint64_t)cheap->lastStack - (uint64_t)PAGESIZE);
+        map_current_memory(cheap->lastStack, newPage);
+        mprotect_current(cheap->lastStack, PAGESIZE, perms);
     }
 
-    void * address = globalHeap.lastStack;	
+    void * address = cheap->lastStack;	
 
-    globalHeap.lastStack = (void*)((uint64_t)globalHeap.lastStack - (uint64_t)PAGESIZE);
+    cheap->lastStack = (void*)((uint64_t)cheap->lastStack - (uint64_t)PAGESIZE);
 
     return address;
 }
 
 void init_heap() {
-    void * heapAddress = (void*)0xffffffff60000000;
-    void * stackAddress = (void*)0xffffffff70000000;
-    uint64_t pageCount = 0x0; //Unused
+    void * kernelHeapAddress =  (void*)0xffffffff60000000;
+    void * kernelStackAddress = (void*)0xffffffff70000000;
+    void * userHeapAddress =    (void*)0x00007fff60000000; //Unused
+    void * userStackAddress =   (void*)0x00007fff70000000; //Unused
  
-    initHeap(heapAddress, stackAddress, pageCount);
-    ready = 1;
+    _initHeap(&kernelGlobalHeap, kernelHeapAddress, kernelStackAddress);
+    _initHeap(&userGlobalHeap, userHeapAddress, userStackAddress);
+}
+
+void * kmalloc(uint64_t size) {
+    return _malloc(&kernelGlobalHeap, size);
+}
+
+void kfree(void* address) {
+    _free(&kernelGlobalHeap, address);
+}
+
+void * kcalloc(uint64_t num, uint64_t size) {
+    return _calloc(&kernelGlobalHeap, num, size);
+}
+
+void * krealloc(void* buffer, uint64_t size) {
+    return _realloc(&kernelGlobalHeap, buffer, size);
+}
+
+void * kstackalloc(uint64_t length) {
+    return _stackalloc(&kernelGlobalHeap, length);
+}
+
+void * umalloc(uint64_t size) {
+    return _malloc(&userGlobalHeap, size);
+}
+
+void ufree(void* address) {
+    _free(&userGlobalHeap, address);
+}
+
+void * ucalloc(uint64_t num, uint64_t size) {
+    return _calloc(&userGlobalHeap, num, size);
+}
+
+void * urealloc(void* buffer, uint64_t size) {
+    return _realloc(&userGlobalHeap, buffer, size);
+}
+
+void * ustackalloc(uint64_t length) {
+    return _stackalloc(&userGlobalHeap, length);
 }

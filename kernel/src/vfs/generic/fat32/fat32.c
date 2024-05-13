@@ -724,7 +724,7 @@ void fat32_debug(const char* disk) {
 	struct dir_s dir;
 	fat_dir_open(&dir, "C:/test/", 0);
 	
-	struct info_s* info = (struct info_s *)malloc(sizeof(struct info_s));
+	struct info_s* info = (struct info_s *)kmalloc(sizeof(struct info_s));
 	memset(info, 0, sizeof(struct info_s));
 	fstatus status;
 	printf("\nListing directories in: C:/test/\n");
@@ -755,7 +755,7 @@ char register_fat32_partition(const char* disk, uint32_t lba, const char* mountp
 		return 0;
 	}
 
-	struct volume_s* vol = (struct volume_s *)malloc(sizeof(struct volume_s));
+	struct volume_s* vol = (struct volume_s *)kmalloc(sizeof(struct volume_s));
 	memset(vol, 0, sizeof(struct volume_s));
 
 	vol->sector_size = load16(mount_buffer + BPB_SECTOR_SIZE);
@@ -804,7 +804,7 @@ uint8_t disk_mount(const char* disk) {
 			if (fat_search(mount_buffer)) {
 				printf("FAT32 found at LBA %x\n", partitions[i].lba);
 				// Allocate the file system structure
-				struct volume_s* vol = (struct volume_s *)malloc(sizeof(struct volume_s));
+				struct volume_s* vol = (struct volume_s *)kmalloc(sizeof(struct volume_s));
 				memset(vol, 0, sizeof(struct volume_s));
 
 				// Update FAT32 information
@@ -854,7 +854,7 @@ uint8_t unregstr_fat32_partition(char letter) {
 		if (!fat_volume_remove(letter)) {
 			return 0;
 		}
-		free(vol);
+		kfree(vol);
 	}
 	return 1;
 }
@@ -869,7 +869,7 @@ uint8_t disk_eject(const char* disk) {
 			if (!fat_volume_remove(vol->letter)) {
 				return 0;
 			}
-			free(vol);
+			kfree(vol);
 		}
 		vol = vol->next;
 	}

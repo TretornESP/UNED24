@@ -23,18 +23,26 @@ struct heap {
     uint64_t totalSize;
     uint64_t usedSize;
     uint64_t freeSize;
+    uint8_t ready;
 };
 
-extern struct heap globalHeap;
+extern struct heap kernelGlobalHeap;
+extern struct heap userGlobalHeap;
 
 void init_heap();
-int heap_safeguard();
-void* malloc(uint64_t size);
+
+void* kmalloc(uint64_t size);
 void* realloc(void* buffer, uint64_t size);
-void free(void* address);
-void expand_heap(uint64_t length);
-void *calloc (uint64_t num, uint64_t size);
-void* stackalloc(uint64_t length);
-void debug_heap();
-void walk_heap();
+void kfree(void* address);
+void *kcalloc (uint64_t num, uint64_t size);
+void* kstackalloc(uint64_t length);
+
+void* umalloc(uint64_t size);
+void* urealloc(void* buffer, uint64_t size);
+void ufree(void* address);
+void *ucalloc (uint64_t num, uint64_t size);
+void* ustackalloc(uint64_t length);
+
+//void debug_heap();
+//void walk_heap();
 #endif

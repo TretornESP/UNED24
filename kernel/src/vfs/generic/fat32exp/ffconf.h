@@ -11,7 +11,7 @@
 #define FF_FS_READONLY	0
 /* This option switches read-only configuration. (0:Read/Write or 1:Read-only)
 /  Read-only configuration removes writing API functions, f_write(), f_sync(),
-/  f_unlink(), f_mkdir(), f_chmod(), f_rename(), f_truncate(), f_getfree()
+/  f_unlink(), f_mkdir(), f_chmod(), f_rename(), f_truncate(), f_getkfree()
 /  and optional writing functions as well. */
 
 
@@ -19,7 +19,7 @@
 /* This option defines minimization level to remove some basic API functions.
 /
 /   0: Basic functions are fully enabled.
-/   1: f_stat(), f_getfree(), f_unlink(), f_mkdir(), f_truncate() and f_rename()
+/   1: f_stat(), f_getkfree(), f_unlink(), f_mkdir(), f_truncate() and f_rename()
 /      are removed.
 /   2: f_opendir(), f_readdir() and f_closedir() are removed in addition to 1.
 /   3: f_lseek() function is removed in addition to 2. */
@@ -129,8 +129,8 @@
 /  be in range of 12 to 255. It is recommended to be set it 255 to fully support LFN
 /  specification.
 /  When use stack for the working buffer, take care on stack overflow. When use heap
-/  memory for the working buffer, memory management functions, ff_memalloc() and
-/  ff_memfree() exemplified in ffsystem.c, need to be added to the project. */
+/  memory for the working buffer, memory management functions, ff_mekmalloc() and
+/  ff_memkfree() exemplified in ffsystem.c, need to be added to the project. */
 
 
 #define FF_LFN_UNICODE	0
@@ -253,7 +253,7 @@
 
 #define FF_FS_NOFSINFO	0
 /* If you need to know correct free space on the FAT32 volume, set bit 0 of this
-/  option, and f_getfree() function at the first time after volume mount will force
+/  option, and f_getkfree() function at the first time after volume mount will force
 /  a full FAT scan. Bit 1 controls the use of last allocated cluster number.
 /
 /  bit0=0: Use free cluster count in the FSINFO if available.

@@ -15,19 +15,19 @@ struct vfs_file_system_type * file_system_type_list_head;
 struct vfs_mount * mount_list_head;
 
 struct vfs_mount * init_mount_header() {
-    struct vfs_mount * mount = malloc(sizeof(struct vfs_mount));
+    struct vfs_mount * mount = kmalloc(sizeof(struct vfs_mount));
     memset((void*)mount, 0, sizeof(struct vfs_mount));
     return mount;
 }
 
 struct vfs_partition * init_partition_header() {
-    struct vfs_partition * part = malloc(sizeof(struct vfs_partition));
+    struct vfs_partition * part = kmalloc(sizeof(struct vfs_partition));
     memset((void*)part, 0, sizeof(struct vfs_partition));
     return part;
 }
 
 struct vfs_file_system_type * init_file_system_type_header() {
-    struct vfs_file_system_type * fst = malloc(sizeof(struct vfs_file_system_type));
+    struct vfs_file_system_type * fst = kmalloc(sizeof(struct vfs_file_system_type));
     memset((void*)fst, 0, sizeof(struct vfs_file_system_type));
     return fst;
 }
@@ -249,7 +249,7 @@ void detect_devices() {
 
 char* get_full_path_from_fdentry(struct file_descriptor_entry* entry) {
     if (entry == 0) return 0;
-    char * full_path = malloc(strlen(entry->name) + strlen(entry->mount) + 1);
+    char * full_path = kmalloc(strlen(entry->name) + strlen(entry->mount) + 1);
     if (full_path == 0) return 0;
     strcpy(full_path, entry->mount);
     strcpy(full_path + strlen(entry->mount), entry->name);

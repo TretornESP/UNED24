@@ -55,7 +55,7 @@ int get_dirfd(const char* path, const char* mount, int flags, int mode) {
             
             open_directory_table[fd].index = 0;
             open_directory_table[fd].number = 0;
-            open_directory_table[fd].dentries = (struct dentry*) malloc(sizeof(struct dentry));
+            open_directory_table[fd].dentries = (struct dentry*) kmalloc(sizeof(struct dentry));
             memset(open_directory_table[fd].dentries, 0, sizeof(struct dentry));
 
             return fd++;
@@ -139,7 +139,7 @@ int release_dirfd(int fd) {
     struct dentry * dentry = dentry_head;
     while (dentry->next != 0) {
         dentry = dentry->next;
-        free(dentry);
+        kfree(dentry);
     }
     return 0;
 }
@@ -154,7 +154,7 @@ uint8_t add_file_to_dirfd(int fd, const char* name, uint32_t inode, uint32_t typ
     while (dentry->next != 0) {
         dentry = dentry->next;
     }
-    dentry->next = (struct dentry*) malloc(sizeof(struct dentry));
+    dentry->next = (struct dentry*) kmalloc(sizeof(struct dentry));
     dentry = dentry->next;
     dentry->next = 0;
     dentry->inode = inode;

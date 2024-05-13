@@ -72,18 +72,12 @@ ctxswtch:
 
     ; Pop registers r15, r14, r13, r12, rbx
     popfq
-    pop rax
-    mov rax, ss
-    pop rax
-    mov rax, gs
-    pop rax
-    mov rax, fs
-    pop rax
-    mov rax, es
-    pop rax
-    mov rax, ds
-    pop rax
-    mov rax, cs
+    pop rax ; Pop ss (ignore)
+    pop rax ; Pop gs (ignore)
+    pop rax ; Pop fs (ignore)
+    pop rax ; Pop es (ignore)
+    pop rax ; Pop ds (ignore)
+    pop rax ; Pop cs (ignore)
     pop rdi
     pop rsi
     pop r15
@@ -153,11 +147,22 @@ ctxcreat:
     pop rax
     ret
 
-; RDI user entry function
+; RSI stack pointer
+; RDI init function
 userspace_trampoline: 
-    pop rcx
-    mov r11, 0x202
-    o64 sysret
+    pop rsi ; Pop stack pointer
+    mov rsi, [rsi]
+    pop rdi ; Pop init function
+
+    mov rax, 0x23
+    mov ds, ax
+
+    push 0x23
+    push rsi
+    push 0x200
+    push 0x2b
+    push rdi
+    iretq
 
 ; RDI stack pointer
 ; RSI init function
@@ -173,7 +178,8 @@ uctxcreat:
     mov rsp, [rdi]
     push returnoexit
     push 0x0
-    push rsi
+    push rsi ; Init function
+    push rdi ; Stack pointer
     push userspace_trampoline
     mov rsi, rsp
     add rsi, 0x8

@@ -79,7 +79,6 @@ void _start(void) {
     set_current_tty("ttya");
     struct task * task = create_task((void*)run_shell, "ttya", KERNEL_TASK);
     add_task(task);
-
     go(5);
     while(1);
 }

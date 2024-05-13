@@ -24,41 +24,26 @@ void global_syscall_handler(struct cpu_context* ctx) {
 
 void syscall_enable() {
     cpu_set_msr_u64(MSR_EFER, cpu_get_msr_u64(MSR_EFER) | 1);
-
-    // when starting the syscall:
-    // CS = kcode
-    // SS = kcode + 8
-    // when returning:
-    // cs=  ucode + 16
-    // ss = ucode + 8
-
-    // so we need to have:
-    // kcode : kernel code
-    // kcode + 8: kernel data
-    // ucode + 8 : user data
-    // ucode + 16 : user code
-
-    cpu_set_msr_u64(MSR_STAR, ((uint64_t)(0x20) << 32) | ((uint64_t)(0x18) << 48));
+    cpu_set_msr_u64(MSR_STAR, 0x23000800000000);
     cpu_set_msr_u64(MSR_LSTAR, (uint64_t)syscall_entry);
-    cpu_set_msr_u64(MSR_SYSCALL_FLAG_MASK, 0xfffffffe);
-
-    uint64_t efer, star, lstar, syscall_flag_mask;
-    efer = cpu_get_msr_u64(MSR_EFER);
-    star = cpu_get_msr_u64(MSR_STAR);
-    lstar = cpu_get_msr_u64(MSR_LSTAR);
-    syscall_flag_mask = cpu_get_msr_u64(MSR_SYSCALL_FLAG_MASK);
-
-    printf("Syscall enabled\n");
-    printf("EFER: %llx STAR: %llx LSTAR: %llx SYSCALL_FLAG_MASK: %llx\n", efer, star, lstar, syscall_flag_mask);
-    printf("STAR[63:48]: %llx\n", star >> 48);
-    //CS is loaded from STAR[63:48]+16 and or'd with 3
-    //SS is loaded from STAR[63:48]+8 and or'd with 3
-    printf("STAR RESULING CS: %llx\n", ((star >> 48) + 16) | 3);
-    printf("STAR RESULING SS: %llx\n", ((star >> 48) + 8) | 3);
+    cpu_set_msr_u64(MSR_SYSCALL_FLAG_MASK, 0x200);
 }
 
 void syscall_set_gs(uintptr_t addr)
 {
     cpu_set_msr_u64(MSR_GS_BASE, addr);
     cpu_set_msr_u64(MSR_KERN_GS_BASE, addr);
+}
+
+void syscall_jump_to_usermode(uint64_t rip, uint64_t rsp) {
+    uint16_t ds = get_user_data_selector() | 3;
+    uint16_t cs = get_user_code_selector() | 3;
+
+    __asm__("mov %0, %%ds" :: "r" (ds));
+    __asm__("push %0" :: "r" (ds));
+    __asm__("push %0" :: "r" (rsp));
+    __asm__("push %0" :: "r" ((uint64_t)(SYSCALL_INITIAL_FLAGS)));
+    __asm__("push %0" :: "r" (cs));
+    __asm__("push %0" :: "r" (rip));
+    __asm__("iretq");
 }

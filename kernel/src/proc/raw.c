@@ -5,7 +5,7 @@
 #include "../util/printf.h"
 
 void load_and_execute(uint8_t* source_buffer, uint64_t vaddr, uint64_t size) {
-    struct page_directory* pd = duplicate_current_pml4();
+    struct page_directory* pd = FROM_KERNEL_MAP(duplicate_current_pml4());
     struct page_directory* old_pd = swap_pml4(pd);
 
     uint64_t page_no = size / 0x1000;

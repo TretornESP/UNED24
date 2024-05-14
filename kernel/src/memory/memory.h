@@ -25,7 +25,7 @@ uint64_t get_free_memory();
 
 int init_memory();
 struct system_memory* get_memory();
-void set_memory(void*);
+void offset_memory(void*);
 
 void reserve_page(void*);
 void unreserve_page(void*);

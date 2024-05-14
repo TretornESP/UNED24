@@ -415,7 +415,7 @@ struct task* create_task(void * init_func, const char * tty, uint8_t privilege) 
         task->ds = get_user_data_selector();
     }
 
-    task->pd = duplicate_current_pml4();
+    task->pd = FROM_KERNEL_MAP(duplicate_current_pml4());
     strncpy(task->tty, tty, strlen(tty));
     task->descriptors = 0;
     task->next = 0;

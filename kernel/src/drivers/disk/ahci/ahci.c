@@ -367,13 +367,15 @@ void configure_port(struct ahci_port* port) {
     port_stop_command(port);
 
     void * new_base = request_current_page_identity();
-    port->hba_port->command_list_base = (uint32_t)(uint64_t)new_base;
-    port->hba_port->command_list_base_upper = (uint32_t)((uint64_t)new_base >> 32);
+    void * new_base_phys = FROM_KERNEL_MAP(new_base);
+    port->hba_port->command_list_base = (uint32_t)(uint64_t)new_base_phys;
+    port->hba_port->command_list_base_upper = (uint32_t)((uint64_t)new_base_phys >> 32);
     memset(new_base, 0, 1024);
 
     void * new_fis_base = request_current_page_identity();
-    port->hba_port->fis_base_address = (uint32_t)(uint64_t)new_fis_base;
-    port->hba_port->fis_base_address_upper = (uint32_t)((uint64_t)new_fis_base >> 32);
+    void * new_fis_base_phys = FROM_KERNEL_MAP(new_fis_base);
+    port->hba_port->fis_base_address = (uint32_t)(uint64_t)new_fis_base_phys;
+    port->hba_port->fis_base_address_upper = (uint32_t)((uint64_t)new_fis_base_phys >> 32);
     memset(new_fis_base, 0, 256);
 
     struct hba_command_header* command_header = (struct hba_command_header*)((uint64_t)port->hba_port->command_list_base | ((uint64_t)port->hba_port->command_list_base_upper << 32));
@@ -381,7 +383,8 @@ void configure_port(struct ahci_port* port) {
         command_header[i].prdt_length = 8;
 
         void * cmd_table_address = request_current_page_identity();
-        uint64_t address = (uint64_t)cmd_table_address + (i << 8);
+        void * cmd_table_address_phys = FROM_KERNEL_MAP(cmd_table_address);
+        uint64_t address = (uint64_t)cmd_table_address_phys + (i << 8);
         command_header[i].command_table_base_address = (uint32_t)(uint64_t)address;
         command_header[i].command_table_base_address_upper = (uint32_t)((uint64_t)address >> 32);
         memset(cmd_table_address, 0, 256);
@@ -438,9 +441,8 @@ void probe_ports(struct hba_memory* abar) {
 void init_ahci(uint32_t bar5) {
     if ((uint64_t)abar != 0)
         panic("AHCI already initialized\n");
-    void * abar_vaddr = get_hw_page();
-    map_current_memory(abar_vaddr, (void*)(uint64_t)bar5);
-    abar = (struct hba_memory*)(uint64_t)(abar_vaddr);
+
+    abar = (struct hba_memory*)(uint64_t)(TO_KERNEL_MAP(bar5));
 
     mprotect_current((void*)abar, 4096, PAGE_CACHE_DISABLE | PAGE_WRITE_BIT | PAGE_USER_BIT | PAGE_NX_BIT);
 

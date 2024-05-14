@@ -227,8 +227,9 @@ struct system_memory * get_memory() {
     return memory;
 }
 
-void set_memory(void* addr) {
-    memory = (struct system_memory*)addr;
+void offset_memory(void* offset) {
+    memory = (struct system_memory*)((uint64_t)memory + (uint64_t)offset);
+    memory->bitfield = (uint8_t*)((uint64_t)memory->bitfield + (uint64_t)offset);
 }
 
 int init_memory() {

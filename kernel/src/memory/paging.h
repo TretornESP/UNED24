@@ -6,9 +6,13 @@
 #define LIMINE_FREE_START 0x1000
 #define LIMINE_FREE_PAGES 0x180000
 
-#define HW_ADDRESS_START   0xffff800000000000
-#define PMM_BITMAP_START   0xffff900000000000
-#define IDENTITY_MAP_START 0xffffA00000000000
+#define HW_ADDRESS_START   ((uint64_t)0xffff800000000000)
+#define PMM_BITMAP_START   ((uint64_t)0xffff900000000000)
+#define IDENTITY_MAP_START ((uint64_t)0xffffA00000000000)
+#define USERLAND_END       ((uint64_t)0x0000800000000000)
+
+#define TO_KERNEL_MAP(vaddr) ((void*)((uint64_t)(vaddr)+(uint64_t)IDENTITY_MAP_START))
+#define FROM_KERNEL_MAP(vaddr) ((void*)((uint64_t)(vaddr)-(uint64_t)IDENTITY_MAP_START))
 
 #define PAGE_WRITE_BIT     0x1
 #define PAGE_USER_BIT      0x2
@@ -23,6 +27,14 @@
 #define PAGE_RESTRICT_NX(x)     ((page_clear((x), PAGE_NX_BIT   )))
 #define PAGE_DISABLE_CACHE(x)   ((page_set  ((x), PAGE_CACHE_DISABLE)))
 #define PAGE_ENABLE_CACHE(x)    ((page_clear((x), PAGE_CACHE_DISABLE)))
+
+struct mapping {
+    void *vaddr;
+    void *paddr;
+    uint8_t copy;
+    uint64_t size;
+    uint8_t flags;
+};
 
 struct page_directory_entry {
     uint64_t present                   :1;
@@ -107,4 +119,5 @@ void * request_current_accessible_page_at(void*, void *);
 
 //void mprotect(struct page_directory *, void*, uint64_t, uint8_t);
 void mprotect_current(void*, uint64_t, uint8_t);
+
 #endif

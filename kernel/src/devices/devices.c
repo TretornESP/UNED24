@@ -149,7 +149,7 @@ char * device_create(void * device_control_structure, uint8_t major, uint64_t id
 
     printf("Registering device: %s [MAJ: %x MIN: %x ID: %x CTRL: %x]\n", name, major, minor, id, device_control_structure);
 
-    device->next = (struct device*)request_page();
+    device->next = (struct device*)kmalloc(sizeof(struct device));
     memset(device->next, 0, sizeof(struct device));
     device->bc = ((major & 0x80) >> 7);
     device->major = major & 0x7F;
@@ -185,7 +185,7 @@ char* insert_device_cb(void* device_control_structure, uint8_t major, uint64_t i
 }
 
 void init_devices() {
-    device_header = (struct device*)request_page();
+    device_header = (struct device*)kmalloc(sizeof(struct device));
     memset(device_header, 0, sizeof(struct device));
 
     struct mcfg_header* mcfg = get_acpi_mcfg();

@@ -139,6 +139,8 @@ override OBJS += $(patsubst $(SRCDIR)/%.S, $(OBJDIR)/%_s.o, $(ASFILES))
 override OBJS += $(patsubst $(SRCDIR)/%.asm, $(OBJDIR)/%_asm.o, $(NASMFILES))
 override HEADER_DEPS := $(CFILES:.c=.d) $(ASFILES:.S=.d)
 
+override quote = '$(subst ','"'"',$1)'
+
 # You may comment @make run in this target if you intend
 # to use virtualbox or real hardware.
 all:
@@ -236,6 +238,7 @@ clean:
 	@rm -f $(ISODIR)/$(ISO)
 	@rm -f $(ISODIR)/$(VDI)
 
+override EX_RIP = 'x/1ig $$rip'
 setup:
 	$(eval WINUSER := $(shell cmd.exe /c 'for %a in (%userprofile%) do (echo %~nxa)' | tail -1 | tr -d ' '))
 	@mkdir -p $(BUILDDIR)
@@ -252,6 +255,9 @@ setup:
 	@echo file $(BUILDDIR)/$(KERNEL) > debug.gdb
 	@echo target remote $(WSLHOSTIP):$(GDBPORT) >> debug.gdb
 	@echo set disassembly-flavor intel >> debug.gdb
+	@echo define hook-stop >> debug.gdb
+	@echo $(EX_RIP) >> debug.gdb
+	@echo end >> debug.gdb
 	@echo b $(KERNEL_ENTRY) >> debug.gdb
 	@echo b interrupt_exception_handler >> debug.gdb
 	@echo b PageFault_Handler >> debug.gdb
@@ -421,6 +427,12 @@ cleanfsd:
 	@sudo umount $(DATDIR) || /bin/true
 	@sudo rm -rf $(MNTDIR)
 	@make losetup_del
+
+ovmf:
+	rm -rf OVMFbin
+	mkdir OVMFbin
+	wget https://github.com/TretornESP/bloodmoon/raw/main/OVMFbin/OVMF_VARS-pure-efi.fd -O OVMFbin/OVMF_VARS-pure-efi.fd
+	wget https://github.com/TretornESP/bloodmoon/raw/main/OVMFbin/OVMF_CODE-pure-efi.fd -O OVMFbin/OVMF_CODE-pure-efi.fd
 
 debugpt:
 	@make clean

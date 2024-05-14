@@ -438,10 +438,10 @@ void probe_ports(struct hba_memory* abar) {
 void init_ahci(uint32_t bar5) {
     if ((uint64_t)abar != 0)
         panic("AHCI already initialized\n");
+    void * abar_vaddr = get_hw_page();
+    map_current_memory(abar_vaddr, (void*)(uint64_t)bar5);
+    abar = (struct hba_memory*)(uint64_t)(abar_vaddr);
 
-    abar = (struct hba_memory*)(uint64_t)(bar5);
-
-    map_current_memory(abar, abar);
     mprotect_current((void*)abar, 4096, PAGE_CACHE_DISABLE | PAGE_WRITE_BIT | PAGE_USER_BIT | PAGE_NX_BIT);
 
     probe_ports(abar);

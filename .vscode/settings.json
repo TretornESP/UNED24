@@ -5,6 +5,8 @@
         "paging.h": "c",
         "keyboard.h": "c",
         "heap.h": "c",
-        "process.h": "c"
+        "process.h": "c",
+        "cpu.h": "c",
+        "memory.h": "c"
     }
 }

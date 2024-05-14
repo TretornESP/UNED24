@@ -387,13 +387,13 @@ void enumerate_function(uint64_t device_address, uint64_t bus, uint64_t device, 
 
     uint64_t offset = function << 12;
 
-    uint64_t function_address = device_address + offset;
-    map_current_memory((void*)function_address, (void*)function_address);
+    uint64_t function_address = (uint64_t)get_hw_page();
+    map_current_memory((void*)function_address, (void*)(device_address + offset));
 
     struct pci_device_header* pci_device_header = (struct pci_device_header*)function_address;
     global_device_header = pci_device_header;
 
-    //if (pci_device_header->device_id == 0x0) return;
+    if (pci_device_header->device_id == 0x0) return;
     if (pci_device_header->device_id == 0xFFFF) return;
 
     printf("[PCI] %s %s: %s %s / %s\n",
@@ -412,8 +412,8 @@ void enumerate_function(uint64_t device_address, uint64_t bus, uint64_t device, 
 void enumerate_device(uint64_t bus_address, uint64_t device, uint64_t bus, char* (*cb)(void*, uint8_t, uint64_t)) {
     uint64_t offset = device << 15;
 
-    uint64_t device_address = bus_address + offset;
-    map_current_memory((void*)device_address, (void*)device_address);
+    uint64_t device_address = (uint64_t)get_hw_page();
+    map_current_memory((void*)device_address, (void*)(bus_address + offset));
 
     struct pci_device_header* pci_device_header = (struct pci_device_header*)device_address;
 
@@ -434,8 +434,8 @@ void enumerate_device(uint64_t bus_address, uint64_t device, uint64_t bus, char*
 void enumerate_bus(uint64_t base_address, uint64_t bus, char* (*cb)(void*, uint8_t, uint64_t)) {
     uint64_t offset = bus << 20;
 
-    uint64_t bus_address = base_address + offset;
-    map_current_memory((void*)bus_address, (void*)bus_address);
+    uint64_t bus_address = (uint64_t)get_hw_page();
+    map_current_memory((void*)bus_address, (void*)(base_address + offset));
     //struct pci_device_header* pci_device_header = (struct pci_device_header*)bus_address;
 
     //if (pci_device_header->device_id == 0x0) {printf("ig0:%ld|", bus); return;}

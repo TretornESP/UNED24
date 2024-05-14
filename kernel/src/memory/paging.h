@@ -3,6 +3,13 @@
 #include <stdint.h>
 #include "memory.h"
 
+#define LIMINE_FREE_START 0x1000
+#define LIMINE_FREE_PAGES 0x180000
+
+#define HW_ADDRESS_START   0xffff800000000000
+#define PMM_BITMAP_START   0xffff900000000000
+#define IDENTITY_MAP_START 0xffffA00000000000
+
 #define PAGE_WRITE_BIT     0x1
 #define PAGE_USER_BIT      0x2
 #define PAGE_NX_BIT        0x4
@@ -67,32 +74,37 @@ struct page_map_index{
 };
 
 void init_paging();
+void dump_mappings();
 //void debug_memory_map(void*, void*);
 uint64_t virtual_to_physical(struct page_directory *, void*);
 uint64_t virtual_to_physical_current(void*);
 
-struct page_directory* allocate_pml4();
+//struct page_directory* allocate_pml4();
 struct page_directory* duplicate_current_pml4();
 struct page_directory* get_pml4();
+
+void * get_hw_page();
 
 void* swap_pml4(void*);
 void invalidate_current_pml4();
 void map_current_memory(void*, void*);
-void map_memory(struct page_directory*, void*, void*);
+//void map_memory(struct page_directory*, void*, void*);
+//void unmap_memory(struct page_directory*, void*);
+void unmap_current_memory(void*);
 
 void map_current_memory_size(void*, void*, uint64_t);
-void map_memory_size(struct page_directory*, void*, void*, uint64_t);
+//void map_memory_size(struct page_directory*, void*, void*, uint64_t);
 
-void * request_page_identity(struct page_directory *);
+//void * request_page_identity(struct page_directory *);
 void * request_current_page_identity();
 
-void * request_page_at(struct page_directory *, void*);
+//void * request_page_at(struct page_directory *, void*);
 void * request_current_page_at(void*);
 void * request_current_pages_identity(uint64_t count);
 
-void * request_accessible_page_at(struct page_directory*, void*, void *);
+//void * request_accessible_page_at(struct page_directory*, void*, void *);
 void * request_current_accessible_page_at(void*, void *);
 
-void mprotect(struct page_directory *, void*, uint64_t, uint8_t);
+//void mprotect(struct page_directory *, void*, uint64_t, uint8_t);
 void mprotect_current(void*, uint64_t, uint8_t);
 #endif

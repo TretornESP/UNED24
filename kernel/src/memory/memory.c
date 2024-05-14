@@ -223,8 +223,12 @@ uint64_t get_free_memory() {
     return free_memory;
 }
 
-struct system_memory * test_get_memory() {
+struct system_memory * get_memory() {
     return memory;
+}
+
+void set_memory(void* addr) {
+    memory = (struct system_memory*)addr;
 }
 
 int init_memory() {

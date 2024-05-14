@@ -4,6 +4,12 @@
 #include "../util/printf.h"
 #include "../util/string.h"
 
+uint8_t hw_buffer[65536] = {0};
+
+void map_memory(struct page_directory* pml4, void* virtual_memory, void* physical_memory);
+void map_memory_size(struct page_directory* pml4, void* virtual_memory, void* physical_memory, uint64_t size);
+void mprotect(struct page_directory *pml4, void* address, uint64_t size, uint8_t permissions);
+
 void address_to_map(uint64_t address, struct page_map_index* map) {
     address >>= 12;
     map->P_i = address & 0x1ff;
@@ -88,19 +94,14 @@ void debug_memory_map(struct page_directory *pml4, void* virtual_memory, void* p
 
 }
 
-struct page_directory* allocate_pml4() {
-    struct page_directory* pml = (struct page_directory*)request_page();
-    if (pml == NULL) {
-        panic("ERROR: Could not allocate page for new PML4\n");
-    }
-    memset(pml, 0, PAGESIZE);
-    return pml;
-}
-
 struct page_directory* get_pml4() {
     struct page_directory* pml4;
     __asm__("movq %%cr3, %0" : "=r"(pml4));
-    return pml4;
+    return pml4+IDENTITY_MAP_START;
+}
+
+void set_pml4(struct page_directory* pml4) {
+    __asm__("movq %0, %%cr3" : : "r" ((void*)(uint64_t)pml4-IDENTITY_MAP_START));
 }
 
 struct page_directory* duplicate_current_pml4() {
@@ -109,33 +110,82 @@ struct page_directory* duplicate_current_pml4() {
     if (pml == NULL) {
         panic("ERROR: Could not allocate page for new PML4\n");
     }
+    memset(pml, 0, PAGESIZE);
     memcpy(pml, father, PAGESIZE);
-    return pml;
+
+    //Copy all the page tables in 4 levels
+    for (uint64_t i = 0; i < 512; i++) {
+        struct page_directory_entry pde = father->entries[i];
+        if (pde.present) {
+            struct page_directory* pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+            struct page_directory* new_pd = (struct page_directory*)request_page();
+            if (new_pd == NULL) {
+                panic("ERROR: Could not allocate page for new PD\n");
+            }
+            memcpy(new_pd, pd, PAGESIZE);
+            pde.page_ppn = (uint64_t)new_pd >> 12;
+            pml->entries[i] = pde;
+
+            for (uint64_t j = 0; j < 512; j++) {
+                struct page_directory_entry pde = pd->entries[j];
+                if (pde.present) {
+                    struct page_table* pt = (struct page_table*)((uint64_t)pde.page_ppn << 12);
+                    struct page_table* new_pt = (struct page_table*)request_page();
+                    if (new_pt == NULL) {
+                        panic("ERROR: Could not allocate page for new PT\n");
+                    }
+                    memcpy(new_pt, pt, PAGESIZE);
+                    pde.page_ppn = (uint64_t)new_pt >> 12;
+                    new_pd->entries[j] = pde;
+
+                    for (uint64_t k = 0; k < 512; k++) {
+                        struct page_table_entry pte = pt->entries[k];
+                        if (pte.present) {
+                            struct page_table_entry new_pte = pte;
+                            new_pt->entries[k] = new_pte;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return pml+IDENTITY_MAP_START;
 }
 
 void* swap_pml4(void* pml) {
-    void* old;
-    __asm__("movq %%cr3, %0" : "=r"(old));
     if (pml == NULL) {
         panic("ERROR: Tried to swap to NULL PML4\n");
     }
+    void* old = (void*)get_pml4();
+
     //Check if pml is different from current
     if (old == pml) {
         return old;
     }
-    __asm__("movq %0, %%cr3" : : "r" (pml)); //This should invalidate TLB
+    set_pml4(pml);
     return old;
 }
 
 void invalidate_current_pml4() {
     struct page_directory* pml4 = get_pml4();
-    __asm__("movq %0, %%cr3" : : "r" (pml4)); //This should invalidate TLB
+    set_pml4(pml4);
 }
 
 void init_paging() {
-    struct page_directory * pml4 = (struct page_directory*)allocate_pml4();
-     __asm__("movq %%cr3, %0" : "=r"(pml4));
-     __asm__("movq %0, %%cr3" : : "r" (pml4)); //This should invalidate TLB    
+    struct page_directory * pml4;
+    __asm__("movq %%cr3, %0" : "=r"(pml4));
+    
+    struct system_memory * memory = get_memory();
+    uint64_t first_page = memory->first_available_page_addr;
+    uint64_t last_page = memory->last_available_page_address; 
+
+    for (uint64_t i = first_page; i < last_page; i += 0x1000) {
+        map_memory(pml4, (void*)IDENTITY_MAP_START+i, (void*)i);
+        mprotect(pml4, (void*)IDENTITY_MAP_START+i, 0x1000, PAGE_WRITE_BIT | PAGE_USER_BIT);
+    }
+
+    pml4 = (struct page_directory*)duplicate_current_pml4();
+    set_pml4(pml4);  
 
     uint64_t virtual_start = get_kernel_address_virtual();
     uint64_t linker_kstart = (uint64_t)&KERNEL_START;
@@ -144,6 +194,8 @@ void init_paging() {
         printf("Crashing: KERNEL_START: %llx VIRT_ADDR: %p\n", linker_kstart, virtual_start);
         panic("init_paging: kernel virtual address does not match KERNEL_START");
     }
+
+    set_memory((void*)IDENTITY_MAP_START+(uint64_t)memory);
 }
 
 void map_current_memory(void* virtual_memory, void* physical_memory) {
@@ -243,6 +295,62 @@ void map_memory(struct page_directory* pml4, void* virtual_memory, void* physica
     pt->entries[map.P_i] = pte;
 }
 
+void unmap_memory(struct page_directory* pml4, void* virtual_memory) {
+    struct page_map_index map;
+    address_to_map((uint64_t)virtual_memory, &map);
+    struct page_directory_entry pde;
+
+    pde = pml4->entries[map.PDP_i];
+    struct page_directory* pdp;
+    if (!pde.present) {
+        return;
+    } else {
+        pdp = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+    }
+
+    pde = pdp->entries[map.PD_i];
+    struct page_directory* pd;
+    if (!pde.present) {
+        return;
+    } else {
+        pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+    }
+
+    pde = pd->entries[map.PT_i];
+    struct page_table* pt;
+    if (!pde.present) {
+        return;
+    } else {
+        pt = (struct page_table*)((uint64_t)pde.page_ppn << 12);
+    }
+
+    struct page_table_entry pte = pt->entries[map.P_i];
+    pte.present = 0;
+    pt->entries[map.P_i] = pte;
+}
+
+void * get_hw_page() {
+    static uint32_t index = 0;
+    uint32_t start = index;
+    while (hw_buffer[index] != 0) {
+        index++;
+        if (index >= 65536) {
+            index = 0;
+        }
+        if (index == start) {
+            panic("ERROR: No more hardware pages available\n");
+        }
+    }
+
+    hw_buffer[index] = 1;
+    return (void*)(HW_ADDRESS_START + (index * PAGESIZE));
+}
+
+void unmap_current_memory(void* virtual_address) {
+    struct page_directory* pml4 = get_pml4();
+    unmap_memory(pml4, virtual_address);
+}
+
 void set_page_perms(struct page_directory *pml4, void* address, uint8_t permissions) {
     struct page_map_index map;
     address_to_map((uint64_t)address, &map);
@@ -301,18 +409,16 @@ void page_clear(struct page_directory *pml4, void* address, uint8_t field) {
     set_page_perms(pml4, address, perms);
 }
 
-void * request_page_identity(struct page_directory *pml4) {
+void * request_page_identity() {
     void * result = request_page();
     if (result == NULL) {
         panic("ERROR: Could not allocate page for identity mapping\n");
     }
-    map_memory(pml4, result, result);
-    return result;
+    return result+IDENTITY_MAP_START;
 }
 
 void * request_current_page_identity() {
-    struct page_directory *pml4 = get_pml4();
-    return request_page_identity(pml4);
+    return request_page_identity();
 }
 
 void * request_current_pages_identity(uint64_t count) {
@@ -369,4 +475,32 @@ void mprotect(struct page_directory *pml4, void* address, uint64_t size, uint8_t
 void mprotect_current(void* address, uint64_t size, uint8_t permissions) {
     struct page_directory *pml4 = get_pml4();
     mprotect(pml4, address, size, permissions);
+}
+
+void dump_mappings() {
+    struct page_directory *pml4 = get_pml4();
+    //Four levels of page tables
+    for (uint64_t i = 0; i < 512; i++) {
+        struct page_directory_entry pde = pml4->entries[i];
+        if (pde.present) {
+            struct page_directory *pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+            for (uint64_t j = 0; j < 512; j++) {
+                struct page_directory_entry pde = pd->entries[j];
+                if (pde.present) {
+                    struct page_table *pt = (struct page_table*)((uint64_t)pde.page_ppn << 12);
+                    for (uint64_t k = 0; k < 512; k++) {
+                        struct page_table_entry pte = pt->entries[k];
+                        if (pte.present) {
+                            printf("PML4: %d PD: %d PT: %d P: %d -> 0x%llx", i, j, k, pte.page_ppn, (uint64_t)pte.page_ppn << 12);
+                            printf(" p: %d w: %d u: %d wt: %d c: %d a: %d d: %d s: %d g: %d i2: %d r: %d i1: %d n: %d\n",
+                                pte.present, pte.writeable, pte.user_access, pte.write_through, pte.cache_disabled,
+                                pte.accessed, pte.dirty, pte.size, pte.global, pte.ignored_2, pte.reserved_1,
+                                pte.ignored_1, pte.execution_disabled
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

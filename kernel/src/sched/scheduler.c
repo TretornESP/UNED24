@@ -392,21 +392,21 @@ struct task* create_task(void * init_func, const char * tty, uint8_t privilege) 
     }
 
     task->entry = init_func;
-
-
+    task->heap = 0x0;
     //Create a stack frame (do not use structs)
     //Set r12-r15 to 0, rbx to 0
     //Set rip to init_func
     if (task->privilege == KERNEL_TASK) {
+        task->pd = FROM_KERNEL_MAP(duplicate_current_pml4());
         task->stack_base = (uint64_t)kstackalloc(KERNEL_STACK_SIZE);
         task->stack_top = task->stack_base + KERNEL_STACK_SIZE;
-        task->alt_stack_base = (uint64_t)ustackalloc(USER_STACK_SIZE);
-        task->alt_stack_top = task->alt_stack_base + USER_STACK_SIZE;
         ctxcreat(&(task->stack_top), init_func, task->fxsave_region);
         task->cs = get_kernel_code_selector();
         task->ds = get_kernel_data_selector();
     } else {
-        task->stack_base = (uint64_t)ustackalloc(USER_STACK_SIZE);
+        task->pd = FROM_KERNEL_MAP(duplicate_current_kernel_pml4());
+        create_user_heap(task, TO_KERNEL_MAP(request_page()));
+        task->stack_base = (uint64_t)ustackalloc(task, USER_STACK_SIZE);
         task->stack_top = task->stack_base + USER_STACK_SIZE;
         task->alt_stack_base = (uint64_t)kstackalloc(KERNEL_STACK_SIZE);
         task->alt_stack_top = task->alt_stack_base + KERNEL_STACK_SIZE;
@@ -415,7 +415,6 @@ struct task* create_task(void * init_func, const char * tty, uint8_t privilege) 
         task->ds = get_user_data_selector();
     }
 
-    task->pd = FROM_KERNEL_MAP(duplicate_current_pml4());
     strncpy(task->tty, tty, strlen(tty));
     task->descriptors = 0;
     task->next = 0;

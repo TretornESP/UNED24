@@ -11,30 +11,13 @@
 #define IDENTITY_MAP_START ((uint64_t)0xffffA00000000000)
 #define USERLAND_END       ((uint64_t)0x0000800000000000)
 
-#define TO_KERNEL_MAP(vaddr) ((void*)((uint64_t)(vaddr)+(uint64_t)IDENTITY_MAP_START))
-#define FROM_KERNEL_MAP(vaddr) ((void*)((uint64_t)(vaddr)-(uint64_t)IDENTITY_MAP_START))
+#define TO_KERNEL_MAP(vaddr) ((void*)(((uint64_t)(vaddr))+(uint64_t)IDENTITY_MAP_START))
+#define FROM_KERNEL_MAP(vaddr) ((void*)(((uint64_t)(vaddr))-(uint64_t)IDENTITY_MAP_START))
 
 #define PAGE_WRITE_BIT     0x1
 #define PAGE_USER_BIT      0x2
 #define PAGE_NX_BIT        0x4
 #define PAGE_CACHE_DISABLE 0x8
-
-#define PAGE_ALLOW_WRITE(x)     ((page_set  ((x), PAGE_WRITE_BIT)))
-#define PAGE_RESTRICT_WRITE(x)  ((page_clear((x), PAGE_WRITE_BIT)))
-#define PAGE_ALLOW_USER(x)      ((page_set  ((x), PAGE_USER_BIT )))
-#define PAGE_RESTRICT_USER(x)   ((page_clear((x), PAGE_USER_BIT )))
-#define PAGE_ALLOW_NX(x)        ((page_set  ((x), PAGE_NX_BIT   )))
-#define PAGE_RESTRICT_NX(x)     ((page_clear((x), PAGE_NX_BIT   )))
-#define PAGE_DISABLE_CACHE(x)   ((page_set  ((x), PAGE_CACHE_DISABLE)))
-#define PAGE_ENABLE_CACHE(x)    ((page_clear((x), PAGE_CACHE_DISABLE)))
-
-struct mapping {
-    void *vaddr;
-    void *paddr;
-    uint8_t copy;
-    uint64_t size;
-    uint8_t flags;
-};
 
 struct page_directory_entry {
     uint64_t present                   :1;
@@ -86,38 +69,21 @@ struct page_map_index{
 };
 
 void init_paging();
-void dump_mappings();
-//void debug_memory_map(void*, void*);
-uint64_t virtual_to_physical(struct page_directory *, void*);
-uint64_t virtual_to_physical_current(void*);
-
-//struct page_directory* allocate_pml4();
-struct page_directory* duplicate_current_pml4();
-struct page_directory* get_pml4();
-
-void * get_hw_page();
 
 void* swap_pml4(void*);
+struct page_directory* duplicate_current_pml4();
+struct page_directory* duplicate_current_kernel_pml4();
+struct page_directory* get_pml4();
 void invalidate_current_pml4();
-void map_current_memory(void*, void*);
-//void map_memory(struct page_directory*, void*, void*);
-//void unmap_memory(struct page_directory*, void*);
-void unmap_current_memory(void*);
+uint8_t get_page_perms(struct page_directory *pml4, void* address);
+void * virtual_to_physical(struct page_directory *, void*);
 
-void map_current_memory_size(void*, void*, uint64_t);
-//void map_memory_size(struct page_directory*, void*, void*, uint64_t);
-
-//void * request_page_identity(struct page_directory *);
-void * request_current_page_identity();
-
-//void * request_page_at(struct page_directory *, void*);
-void * request_current_page_at(void*);
-void * request_current_pages_identity(uint64_t count);
-
-//void * request_accessible_page_at(struct page_directory*, void*, void *);
-void * request_current_accessible_page_at(void*, void *);
-
-//void mprotect(struct page_directory *, void*, uint64_t, uint8_t);
+void map_current_memory(void*, void*, uint8_t);
+void map_memory(struct page_directory *, void*, void*, uint8_t);
+void unmap_current_memory(void*);	
+void unmap_memory(struct page_directory *, void*);
+void * request_current_page_at(void*, uint8_t);
+void * request_page_at(struct page_directory *, void*, uint8_t);
 void mprotect_current(void*, uint64_t, uint8_t);
-
+uint8_t is_present(struct page_directory* pml4, void * address);
 #endif

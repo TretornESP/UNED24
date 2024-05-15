@@ -24,8 +24,7 @@ void init_cpus() {
     cpu->tss = get_tss(BSP_CPU);
     cpu->ctx = kmalloc(sizeof(struct cpu_context));
     memset(cpu->ctx, 0, sizeof(struct cpu_context));
-    cpu->ustack = ustackalloc(USER_STACK_SIZE) + USER_STACK_SIZE;
-    memset(cpu->ustack - USER_STACK_SIZE, 0, USER_STACK_SIZE);
+
     cpu->kstack = kstackalloc(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE;
     memset(cpu->kstack - KERNEL_STACK_SIZE, 0, KERNEL_STACK_SIZE);
     
@@ -35,7 +34,6 @@ void init_cpus() {
     memset(ist1 - KERNEL_STACK_SIZE, 0, KERNEL_STACK_SIZE);
 
     tss_set_stack(cpu->tss, cpu->kstack, 0);
-    tss_set_stack(cpu->tss, cpu->ustack, 3);
     tss_set_ist(cpu->tss, 0, (uint64_t)ist0);
     tss_set_ist(cpu->tss, 1, (uint64_t)ist1);
 

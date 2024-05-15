@@ -121,12 +121,12 @@ static void interrupt_exception_handler(struct cpu_context* ctx, uint8_t cpu_id)
 }
 
 struct idtdescentry * get_idt_gate(uint8_t entry_offset) {
-    return (struct idtdescentry*)(idtr.offset + (entry_offset * sizeof(struct idtdescentry)));
+    return (struct idtdescentry*)(TO_KERNEL_MAP(idtr.offset + (entry_offset * sizeof(struct idtdescentry))));
 }
 
 void set_idt_gate(uint64_t handler, uint8_t entry_offset, uint8_t type_attr, uint8_t ist, uint16_t selector) {
-    struct idtdescentry* interrupt = (struct idtdescentry*)(idtr.offset + (entry_offset * sizeof(struct idtdescentry)));
-    set_offset(interrupt, handler);
+    struct idtdescentry* interrupt = (struct idtdescentry*)(TO_KERNEL_MAP(idtr.offset + (entry_offset * sizeof(struct idtdescentry))));
+    set_offset(FROM_KERNEL_MAP(interrupt), handler);
     interrupt->type_attr.raw = type_attr;
     interrupt->selector = selector;
     interrupt->ist = ist;
@@ -164,8 +164,8 @@ void init_interrupts() {
     __asm__("cli");
     
     idtr.limit = 256 * sizeof(struct idtdescentry) - 1;
-    idtr.offset = (uint64_t)request_current_page_identity();
-    memset((void*)idtr.offset, 0, 256 * sizeof(struct idtdescentry));
+    idtr.offset = (uint64_t)request_page();
+    memset((void*)TO_KERNEL_MAP(idtr.offset), 0, 256 * sizeof(struct idtdescentry));
     
     for (int i = 0; i < 256; i++) {
         set_idt_gate((uint64_t)interrupt_vector[i], i, IDT_TA_InterruptGate, 0, get_kernel_code_selector());

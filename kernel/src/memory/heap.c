@@ -6,31 +6,32 @@
 //Thank you Konect!!!
 #define HEAP_SIGNATURE  0xcafebabe
 
+#include "../proc/process.h"
 #include "../util/printf.h"
 #include "../util/string.h"
 #include "../util/panic.h"
 
 struct heap kernelGlobalHeap;
-struct heap userGlobalHeap;
 
-void * _malloc(struct heap * cheap, uint64_t size);
-void expand_heap(struct heap * cheap, uint64_t length);
+void * _malloc(struct page_directory* pml4, struct heap * cheap, uint64_t size);
+void expand_heap(struct page_directory* pml4, struct heap * cheap, uint64_t length);
 
-void _initHeap(struct heap * cheap, void* heapAddress, void* stackAddress) {
-    cheap->heapEnd = heapAddress;
-    cheap->lastStack = stackAddress;
-
-    void * newPhysicalAddress = request_page();
-    if (!newPhysicalAddress) {
-        panic("Failed to allocate heap\n");
-    }
-
+void _initHeap(struct page_directory * pml4, struct heap * cheap, void* heapStart, void * heapEnd, void* stackStart, void * stackEnd, uint8_t user) {
     uint8_t perms = PAGE_WRITE_BIT;
-    if (cheap == &userGlobalHeap) perms |= PAGE_USER_BIT;
+    if (user) perms |= PAGE_USER_BIT;
 
-    cheap->heapEnd = (void*)((uint64_t)cheap->heapEnd - PAGESIZE);
-    map_current_memory(cheap->heapEnd, newPhysicalAddress);
-    mprotect_current(cheap->heapEnd, PAGESIZE, perms);
+    cheap->heapEnd = heapEnd - (uint64_t)PAGESIZE;
+    request_current_page_at(cheap->heapEnd, perms);
+    cheap->lastStack = stackEnd - (uint64_t)PAGESIZE;
+    request_current_page_at(cheap->lastStack, perms);
+
+    struct page_directory* pd = get_pml4();
+    if (pd != pml4) {
+        void * physical = virtual_to_physical(pd,  cheap->heapEnd);
+        map_memory(pml4, cheap->heapEnd, physical, perms);
+        physical = virtual_to_physical(pd, cheap->lastStack);
+        map_memory(pml4, cheap->lastStack, physical, perms);
+    }
 
     cheap->mainSegment = (struct heap_segment_header*)((uint64_t)cheap->heapEnd + ((uint64_t)PAGESIZE -sizeof(struct heap_segment_header)));
     cheap->mainSegment->length = 0;
@@ -50,6 +51,7 @@ void _initHeap(struct heap * cheap, void* heapAddress, void* stackAddress) {
 
     cheap->totalSize += PAGESIZE;
     cheap->freeSize += PAGESIZE;
+    cheap->isKernel = !user;
     cheap->ready = 1;
 }
 
@@ -57,9 +59,9 @@ int heap_safeguard(struct heap * cheap) {
     return cheap->ready;
 }
 
-void *_calloc (struct heap * cheap, uint64_t num, uint64_t size) {
+void *_calloc (struct page_directory* pml4, struct heap * cheap, uint64_t num, uint64_t size) {
     if (!cheap->ready) return 0;
-    void *ptr = _malloc(cheap, num * size);
+    void *ptr = _malloc(pml4, cheap, num * size);
     memset(ptr, 0, num * size);
     return ptr;
 }
@@ -119,7 +121,7 @@ void walk_heap(struct heap * cheap) {
     }
 }
 
-void* _malloc(struct heap * cheap, uint64_t size) {
+void* _malloc(struct page_directory* pml4, struct heap * cheap, uint64_t size) {
     if (!cheap->ready) return 0;
     if (size == 0) return 0;
 
@@ -152,8 +154,8 @@ void* _malloc(struct heap * cheap, uint64_t size) {
         currentSegment = currentSegment->next;
     }
 
-    expand_heap(cheap, size);
-    return _malloc(cheap, size);
+    expand_heap(pml4, cheap, size);
+    return _malloc(pml4, cheap, size);
 }
 
 void MergeThisToNext(struct heap_segment_header* header){
@@ -212,9 +214,9 @@ void _free(struct heap * cheap, void* address) {
     }
 }
 
-void* _realloc(struct heap * cheap, void* buffer, uint64_t size) {
+void* _realloc(struct page_directory* pml4, struct heap * cheap, void* buffer, uint64_t size) {
     if (!cheap->ready) return 0;
-    void* newBuffer = _malloc(cheap, size);
+    void* newBuffer = _malloc(pml4, cheap, size);
     if (newBuffer == 0) return 0;
     if (buffer == 0) return newBuffer;
 
@@ -227,7 +229,7 @@ void* _realloc(struct heap * cheap, void* buffer, uint64_t size) {
     return newBuffer;
 }
 
-void expand_heap(struct heap * cheap, uint64_t length) {
+void expand_heap(struct page_directory* pml4, struct heap * cheap, uint64_t length) {
     length += sizeof(struct heap_segment_header);
     if (length % PAGESIZE) {
         length -= length % PAGESIZE;
@@ -239,14 +241,20 @@ void expand_heap(struct heap * cheap, uint64_t length) {
     if (length % PAGESIZE) pages++;
 
     uint8_t perms = PAGE_WRITE_BIT;
-    if (cheap == &userGlobalHeap) perms |= PAGE_USER_BIT;
+    if (!cheap->isKernel) perms |= PAGE_USER_BIT;
 
+    struct page_directory* pd = get_pml4();
+
+    void * physical;
     for (uint64_t i = 0; i < pages; i++) {
-        void * newPage = request_page();
-        if (newPage == 0) {cheap->ready = 0; panic("Failed to expand heap");}
         cheap->heapEnd = (void*)((uint64_t)cheap->heapEnd - (uint64_t)PAGESIZE);
-        map_current_memory(cheap->heapEnd, newPage);
-        mprotect_current(cheap->heapEnd, PAGESIZE, perms);
+        cheap->heapEnd = request_current_page_at(cheap->heapEnd, perms);
+        if (cheap->heapEnd == 0) {cheap->ready = 0; panic("Failed to expand heap");}
+
+        if (pd != pml4) {
+            physical = virtual_to_physical(pd, cheap->heapEnd);
+            map_memory(pd, cheap->heapEnd, physical, perms);
+        }
     }
 
     struct heap_segment_header* newSegment = (struct heap_segment_header*)cheap->heapEnd;
@@ -276,20 +284,25 @@ void expand_heap(struct heap * cheap, uint64_t length) {
     cheap->freeSize += (length + sizeof(struct heap_segment_header));
 }
 
-void* _stackalloc(struct heap * cheap, uint64_t length) {
+void* _stackalloc(struct page_directory* pml4, struct heap * cheap, uint64_t length) {
     uint64_t pages = length / PAGESIZE;
     if (length % PAGESIZE) pages++;
 
-    cheap->lastStack = (void*)((uint64_t)cheap->lastStack - (uint64_t)PAGESIZE);
     uint8_t perms = PAGE_WRITE_BIT;
-    if (cheap == &userGlobalHeap) perms |= PAGE_USER_BIT;
+    if (!cheap->isKernel) perms |= PAGE_USER_BIT;
 
+    struct page_directory* pd = get_pml4();
+
+    void * physical;
     for (uint64_t i = 0; i < pages; i++) {
-        void * newPage = request_page();
-        if (newPage == 0) panic("Out of memory");
         cheap->lastStack = (void*)((uint64_t)cheap->lastStack - (uint64_t)PAGESIZE);
-        map_current_memory(cheap->lastStack, newPage);
-        mprotect_current(cheap->lastStack, PAGESIZE, perms);
+        cheap->lastStack = request_current_page_at(cheap->lastStack, perms);
+        if (cheap->lastStack == 0) panic("Out of memory");
+
+        if (pd != pml4) {
+            physical = virtual_to_physical(pd, cheap->lastStack);
+            map_memory(pml4, cheap->lastStack, physical, perms);
+        }
     }
 
     void * address = cheap->lastStack;	
@@ -300,51 +313,61 @@ void* _stackalloc(struct heap * cheap, uint64_t length) {
 }
 
 void init_heap() {
-    void * kernelHeapAddress =  (void*)0xffffffff60000000;
-    void * kernelStackAddress = (void*)0xffffffff70000000;
-    void * userHeapAddress =    (void*)0x00007fff60000000; //Unused
-    void * userStackAddress =   (void*)0x00007fff70000000; //Unused
+    void * kernelHeapStartAddress =  (void*)0xffffffff60000000;
+    void * kernelHeapEndAddress =    (void*)0xffffffff6ffff000;
+    void * kernelStackStartAddress = (void*)0xffffffff70000000;
+    void * kernelStackEndAddress =   (void*)0xffffffff7ffff000;
  
-    _initHeap(&kernelGlobalHeap, kernelHeapAddress, kernelStackAddress);
-    _initHeap(&userGlobalHeap, userHeapAddress, userStackAddress);
+    _initHeap(get_pml4(), &kernelGlobalHeap, kernelHeapStartAddress, kernelHeapEndAddress, kernelStackStartAddress, kernelStackEndAddress, 0);
+}
+
+void create_user_heap(struct task * task, struct heap * cheap) {
+    void * userHeapStartAddress =    (void*)0x00007fff60000000;
+    void * userHeapEndAddress =      (void*)0x00007fff6ffff000;
+    void * userStackStartAddress =   (void*)0x00007fff70000000;
+    void * userStackEndAddress =     (void*)0x00007fff7ffff000;
+
+    _initHeap(TO_KERNEL_MAP(task->pd), cheap, userHeapStartAddress, userHeapEndAddress, userStackStartAddress, userStackEndAddress, 1);
+    task->heap = (void*)cheap;
 }
 
 void * kmalloc(uint64_t size) {
-    return _malloc(&kernelGlobalHeap, size);
+    return _malloc(get_pml4(), &kernelGlobalHeap, size);
 }
 
 void kfree(void* address) {
+     //TODO: Implement unmap on free
     _free(&kernelGlobalHeap, address);
 }
 
 void * kcalloc(uint64_t num, uint64_t size) {
-    return _calloc(&kernelGlobalHeap, num, size);
+    return _calloc(get_pml4(), &kernelGlobalHeap, num, size);
 }
 
 void * krealloc(void* buffer, uint64_t size) {
-    return _realloc(&kernelGlobalHeap, buffer, size);
+    return _realloc(get_pml4(), &kernelGlobalHeap, buffer, size);
 }
 
 void * kstackalloc(uint64_t length) {
-    return _stackalloc(&kernelGlobalHeap, length);
+    return _stackalloc(get_pml4(), &kernelGlobalHeap, length);
 }
 
-void * umalloc(uint64_t size) {
-    return _malloc(&userGlobalHeap, size);
+void * umalloc(struct task* task, uint64_t size) {
+    return _malloc(TO_KERNEL_MAP(task->pd), (struct heap*)task->heap, size);
 }
 
-void ufree(void* address) {
-    _free(&userGlobalHeap, address);
+void ufree(struct task* task, void* address) {
+    _free((struct heap*)task->heap, address);
 }
 
-void * ucalloc(uint64_t num, uint64_t size) {
-    return _calloc(&userGlobalHeap, num, size);
+void * ucalloc(struct task* task, uint64_t num, uint64_t size) {
+    return _calloc(TO_KERNEL_MAP(task->pd), (struct heap*)task->heap, num, size);
 }
 
-void * urealloc(void* buffer, uint64_t size) {
-    return _realloc(&userGlobalHeap, buffer, size);
+void * urealloc(struct task* task, void* buffer, uint64_t size) {
+    return _realloc(TO_KERNEL_MAP(task->pd), (struct heap*)task->heap, buffer, size);
 }
 
-void * ustackalloc(uint64_t length) {
-    return _stackalloc(&userGlobalHeap, length);
+void * ustackalloc(struct task* task, uint64_t length) {
+    return _stackalloc(TO_KERNEL_MAP(task->pd), (struct heap*)task->heap, length);
 }

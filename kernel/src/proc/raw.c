@@ -13,8 +13,7 @@ void load_and_execute(uint8_t* source_buffer, uint64_t vaddr, uint64_t size) {
 
     uint8_t flags = PAGE_WRITE_BIT | PAGE_USER_BIT;
     for (uint64_t i = 0; i < page_no; i++) {
-        request_current_page_at((void*)(vaddr + i*0x1000));
-        mprotect_current((void*)(vaddr + i*0x1000), 0x1000, flags);
+        request_current_page_at((void*)(vaddr + i*0x1000), flags);
     }
 
     memcpy((void*)vaddr, source_buffer, size);

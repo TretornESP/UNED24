@@ -206,29 +206,45 @@ void elf_readelf(uint8_t * buffer, uint64_t size) {
     printf("  Section header string table index: %d\n", elf_header->e_shstrndx);
 }
 
-void allocate_segment(Elf64_Phdr * program_header, void * buffer) {
+void allocate_segment(struct task * task, Elf64_Phdr * program_header, void * buffer) {
     if (program_header->p_type != PT_LOAD) return;
 
     uint64_t vaddr_offset = program_header->p_vaddr & 0xfff;
     uint64_t vaddr = program_header->p_vaddr & ~0xfff;
-    printf("Vaddr: 0x%llx\n", vaddr);
 
     uint64_t total_size = program_header->p_memsz + vaddr_offset;
     uint64_t page_no = total_size / 0x1000;
     if (total_size % 0x1000) page_no++;
 
-    void * complete_buffer = umalloc(page_no * 0x1000);
+    uint8_t perms = PAGE_USER_BIT;
+    if (program_header->p_flags & PF_W) perms |= PAGE_WRITE_BIT;
+    if (program_header->p_flags & PF_X) perms |= PAGE_NX_BIT;
+
+    void * complete_buffer = kmalloc(page_no * 0x1000);
     memset(complete_buffer, 0, page_no * 0x1000);
     memcpy(complete_buffer + vaddr_offset,  (void*)(buffer+program_header->p_offset), program_header->p_filesz);
 
+    void * physical;
     for (uint64_t i = 0; i < page_no; i++) {
-        request_current_page_at((void*)(vaddr + i * 0x1000));
+        void * partial_buffer = TO_KERNEL_MAP(request_page());
+        physical = virtual_to_physical(get_pml4(), partial_buffer);
+        map_memory(TO_KERNEL_MAP(task->pd), (void*)(vaddr + i * 0x1000), (void*)physical, perms);
+        printf("Para el proceso padre %llx mapea a %llx\n", partial_buffer + i * 0x1000, physical);
+        physical = virtual_to_physical(TO_KERNEL_MAP(task->pd), (void*)(vaddr + i * 0x1000));
+        printf("Para el proceso hijo  %llx mapea a %llx\n", vaddr + i * 0x1000, physical);
+        memset(partial_buffer, 0, 0x1000);
+        memcpy(partial_buffer, complete_buffer + i * 0x1000, 0x1000);
+
+        printf("Dump for %llx\n", program_header->p_vaddr);
+        for (int i = 0; i < 100; i++) {
+            if (i % 16 == 0) printf("\n");
+            printf("%02x ", ((uint8_t*)partial_buffer)[i]);
+        }
+        printf("\n");
     }
-    //mprotect_current((void*)0x400000, 0x410000, PAGE_USER_BIT | PAGE_WRITE_BIT);
 
-    memcpy((void*)vaddr, complete_buffer, total_size);
+    kfree(complete_buffer);    
 
-    ufree(complete_buffer);
 }
 
 uint8_t elf_load_elf(uint8_t * buffer, uint64_t size, void* env) {
@@ -252,19 +268,34 @@ uint8_t elf_load_elf(uint8_t * buffer, uint64_t size, void* env) {
     }
 
     Elf64_Phdr * program_header = (Elf64_Phdr *) (buffer + elf_header->e_phoff);
-    for (int i = 0; i < elf_header->e_phnum; i++) {
-        if (program_header[i].p_type == PT_LOAD) {
-            allocate_segment(&program_header[i], buffer);
-            printf("Loaded segment at 0x%x with size 0x%x and flags 0x%x\n", program_header[i].p_vaddr, program_header[i].p_memsz, program_header[i].p_flags);
-        }
-    }
+
 
     for (int i = 0; i < elf_header->e_phnum; i++) {
         if (program_header[i].p_type == PT_LOAD) {
             if (elf_header->e_entry >= program_header[i].p_vaddr && elf_header->e_entry < program_header[i].p_vaddr + program_header[i].p_memsz) {
                 printf("Spawning process at 0x%x\n", elf_header->e_entry);
                 struct task * task = create_task((void*)elf_header->e_entry, "ttya\0", USER_TASK);
-                if (task) add_task(task);
+                if (!task) {
+                    printf("Failed to create task\n");
+                    return 0;
+                }
+                
+                for (int i = 0; i < elf_header->e_phnum; i++) {
+                    if (program_header[i].p_type == PT_LOAD) {
+                        allocate_segment(task, &program_header[i], buffer);
+                        printf("Loaded segment at 0x%x with size 0x%x and flags 0x%x\n", program_header[i].p_vaddr, program_header[i].p_memsz, program_header[i].p_flags);
+                    }
+                }
+
+                if (!is_present(TO_KERNEL_MAP(task->pd), (void*)elf_header->e_entry)) {
+                    printf("Entry point not present\n");
+                    return 0;
+                }
+                
+                
+                add_task(task);
+
+                return 1;
             }
         }
     }

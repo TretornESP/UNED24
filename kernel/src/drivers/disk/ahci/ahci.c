@@ -366,13 +366,13 @@ void port_start_command(struct ahci_port* port) {
 void configure_port(struct ahci_port* port) {
     port_stop_command(port);
 
-    void * new_base = request_current_page_identity();
+    void * new_base = TO_KERNEL_MAP(request_page());
     void * new_base_phys = FROM_KERNEL_MAP(new_base);
     port->hba_port->command_list_base = (uint32_t)(uint64_t)new_base_phys;
     port->hba_port->command_list_base_upper = (uint32_t)((uint64_t)new_base_phys >> 32);
     memset(new_base, 0, 1024);
 
-    void * new_fis_base = request_current_page_identity();
+    void * new_fis_base = TO_KERNEL_MAP(request_page());
     void * new_fis_base_phys = FROM_KERNEL_MAP(new_fis_base);
     port->hba_port->fis_base_address = (uint32_t)(uint64_t)new_fis_base_phys;
     port->hba_port->fis_base_address_upper = (uint32_t)((uint64_t)new_fis_base_phys >> 32);
@@ -382,7 +382,7 @@ void configure_port(struct ahci_port* port) {
 ;    for (int i = 0; i < 32; i++) {
         command_header[i].prdt_length = 8;
 
-        void * cmd_table_address = request_current_page_identity();
+        void * cmd_table_address = TO_KERNEL_MAP(request_page());
         void * cmd_table_address_phys = FROM_KERNEL_MAP(cmd_table_address);
         uint64_t address = (uint64_t)cmd_table_address_phys + (i << 8);
         command_header[i].command_table_base_address = (uint32_t)(uint64_t)address;
@@ -443,16 +443,15 @@ void init_ahci(uint32_t bar5) {
         panic("AHCI already initialized\n");
 
     abar = (struct hba_memory*)(uint64_t)(TO_KERNEL_MAP(bar5));
-
-    mprotect_current((void*)abar, 4096, PAGE_CACHE_DISABLE | PAGE_WRITE_BIT | PAGE_USER_BIT | PAGE_NX_BIT);
-
+    map_current_memory(abar, (void*)(uint64_t)bar5, PAGE_CACHE_DISABLE | PAGE_WRITE_BIT | PAGE_NX_BIT);
     probe_ports(abar);
 
     for (int i = 0; i < port_count; i++) {
         struct ahci_port* port = &ahci_ports[i];
         configure_port(port);
-        port->buffer = (uint8_t*)request_current_page_identity();
-        memset(port->buffer, 0, 4096);
+        port->buffer = (uint8_t*)request_page();
+        mprotect_current(TO_KERNEL_MAP(port->buffer), 4096,  PAGE_WRITE_BIT | PAGE_NX_BIT);
+        memset(TO_KERNEL_MAP(port->buffer), 0, 4096);
     }
 
 }

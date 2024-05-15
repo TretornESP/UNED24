@@ -388,7 +388,8 @@ void enumerate_function(uint64_t device_address, uint64_t bus, uint64_t device, 
 
     uint64_t offset = function << 12;
 
-    struct pci_device_header* pci_device_header = (struct pci_device_header*)(device_address + offset);
+    struct pci_device_header* pci_device_header = (struct pci_device_header*)TO_KERNEL_MAP(device_address + offset);
+    map_current_memory((void*)pci_device_header, (void*)(device_address + offset), PAGE_WRITE_BIT);
     global_device_header = pci_device_header;
 
     //if (pci_device_header->device_id == 0x0) return;
@@ -410,8 +411,8 @@ void enumerate_function(uint64_t device_address, uint64_t bus, uint64_t device, 
 void enumerate_device(uint64_t bus_address, uint64_t device, uint64_t bus, char* (*cb)(void*, uint8_t, uint64_t)) {
     uint64_t offset = device << 15;
 
-    uint64_t device_address = (uint64_t)(bus_address + offset);
-
+    uint64_t device_address = (uint64_t)TO_KERNEL_MAP(bus_address + offset);
+    map_current_memory((void*)device_address, (void*)(bus_address + offset), PAGE_WRITE_BIT);
     struct pci_device_header* pci_device_header = (struct pci_device_header*)device_address;
 
     //if (pci_device_header->device_id == 0x0) return;
@@ -421,17 +422,17 @@ void enumerate_device(uint64_t bus_address, uint64_t device, uint64_t bus, char*
 
     if (pci_device_header->header_type & 0x80) {
         for (uint64_t function = 0; function < 8; function++) {
-            enumerate_function(device_address, bus, device, function, cb);
+            enumerate_function(bus_address + offset, bus, device, function, cb);
         }
     } else {
-        enumerate_function(device_address, bus, device, 0, cb);
+        enumerate_function(bus_address + offset, bus, device, 0, cb);
     }
 }
 
 void enumerate_bus(uint64_t base_address, uint64_t bus, char* (*cb)(void*, uint8_t, uint64_t)) {
     uint64_t offset = bus << 20;
-
     uint64_t bus_address = (uint64_t)TO_KERNEL_MAP(base_address + offset);
+    map_current_memory((void*)bus_address, (void*)(base_address + offset), PAGE_WRITE_BIT);
     //struct pci_device_header* pci_device_header = (struct pci_device_header*)bus_address;
 
     //if (pci_device_header->device_id == 0x0) {printf("ig0:%ld|", bus); return;}
@@ -439,7 +440,7 @@ void enumerate_bus(uint64_t base_address, uint64_t bus, char* (*cb)(void*, uint8
 
     //printf("\n[PCI] Enumerating bus %x\n", bus);
     for (uint64_t device = 0; device < 32; device++) {
-        enumerate_device(bus_address, device, bus, cb);
+        enumerate_device(base_address + offset, device, bus, cb);
     }
 }
 

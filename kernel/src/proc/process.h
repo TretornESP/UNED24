@@ -84,6 +84,7 @@ struct task {
     long current_nice;
     struct mm_struct *mm;
     struct interrupt_frame_error *frame;
+    void *heap;
 
     unsigned long long sleep_time;
     unsigned long long cpu_time;

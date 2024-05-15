@@ -86,4 +86,6 @@ void * request_current_page_at(void*, uint8_t);
 void * request_page_at(struct page_directory *, void*, uint8_t);
 void mprotect_current(void*, uint64_t, uint8_t);
 uint8_t is_present(struct page_directory* pml4, void * address);
+uint8_t is_user_access(struct page_directory* pml4, void * address);
+uint8_t is_executable(struct page_directory* pml4, void * address);
 #endif

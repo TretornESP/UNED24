@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "../memory/paging.h"
 #include "../io/interrupts.h"
+#include "../arch/cpu.h"
 #define STACK_SIZE 0x1000
 #define TASK_SIGNAL_MAX 0x20
 
@@ -57,6 +58,8 @@ struct task_signal {
 typedef void (*sighandler_t)(int, void*, uint64_t);
 
 struct task {
+    struct cpu_context *context;
+    
     uint64_t stack_base;
     uint64_t stack_top;
     struct page_directory* pd;

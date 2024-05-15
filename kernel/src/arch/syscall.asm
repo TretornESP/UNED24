@@ -1,74 +1,77 @@
 [BITS 64]
 
-%macro push_all 0
-
-    push rax
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
-    push rbp
-    push r8
-    push r9
-    push r10
-    push r11
-    push r12
-    push r13
-    push r14
-    push r15
-
-%endmacro
-
-%macro pop_all 0
-
-    pop r15
-    pop r14
-    pop r13
-    pop r12
-    pop r11
-    pop r10
-    pop r9
-    pop r8
-    pop rbp
-    pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
-
-%endmacro
-
 ALIGN 4096
 extern global_syscall_handler
 global syscall_entry
 syscall_entry:
     swapgs               ; swap from USER gs to KERNEL gs
-    mov [gs:0x8], rsp    ; save current stack to the local cpu structure
-    mov rsp, [gs:0x0]    ; use the kernel syscall stack
+    mov [gs:0x10], rsp    ; save current stack to the local cpu structure
+    mov rsp, [gs:0x8]    ; use the kernel syscall stack
+    mov rsp, [rsp]
+    push qword rbp
+    mov rbp, [gs:0x8]
+
+    push qword [rbp + 0x10] ; ss
+    push qword [gs:0x10]   ; rsp
 
     sti
-
-    push qword 0x1b      ; user data
-    push qword [gs:0x8]  ; saved stack
     push r11             ; saved rflags
-    push qword 0x18      ; user code
+    push qword [rbp + 0x8] ; cs
     push rcx             ; current IP
+    push 0x0             ; error code
+    push 0x0             ; int number
+    mov rbp, [rbp + 0x38] ; rip
 
-    push qword 0
-    push qword 0
+    push    r15
+    push    r14
+    push    r13
+    push    r12
+    push    r11
+    push    r10
+    push    r9
+    push    r8
+    push    rbp
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    push    rbx
+    push    rax
+    push   qword [gs:0x8]
+    mov     rax, cr3
+    push    rax
 
     cld
-    push_all
-
+    
+    mov rax, [gs:0x8]
     mov rdi, rsp
-    mov rbp, 0
+    mov rsi, [rax + 0x18]
 
     call global_syscall_handler
 
-    pop_all              ; pop everything except rax because we use it for the return value
+    pop    rax
+    mov    cr3, rax
+    pop    qword [gs:0x8]
+    pop    rax
+    pop    rbx
+    pop    rcx
+    pop    rdx
+    pop    rsi
+    pop    rdi
+    pop    rbp
+    pop    r8
+    pop    r9
+    pop    r10
+    pop    r11
+    pop    r12
+    pop    r13
+    pop    r14
+    pop    r15
+
+    mov r11, [rsp + 0x20]
+    add rcx, [rsp + 0x10]
 
     cli
-    mov rsp, [gs:0x8]    ; return to the user stack
+    mov rsp, [rsp + 0x28]
     swapgs
     o64 sysret

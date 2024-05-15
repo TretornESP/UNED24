@@ -107,7 +107,7 @@ void __attribute__((noinline)) yield() {
     current_task->last_scheduled = get_ticks_since_boot();
 
     struct cpu * cpu = get_cpu(current_task->processor);
-    syscall_set_gs((uint64_t)cpu->ctx);
+    syscall_set_gs((uint64_t)current_task);
     if (current_task->privilege == KERNEL_TASK) {
         tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
         tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 3);
@@ -115,7 +115,8 @@ void __attribute__((noinline)) yield() {
         tss_set_stack(cpu->tss, (void*)current_task->stack_base, 3);
         tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
     }
-    ctxswtch(prev, current_task, prev->fxsave_region, current_task->fxsave_region);
+    //ctxswtch(prev, current_task, prev->fxsave_region, current_task->fxsave_region);
+    newctxswtch(prev->context, current_task->context);
 }
 
 void add_task(struct task* task) {
@@ -239,6 +240,7 @@ void go(uint32_t preempt) {
     //TODO: Implement the real version
     __asm__ volatile("cli");
     boot_task = kmalloc(sizeof(struct task));
+    boot_task->context = kmalloc(sizeof(struct cpu_context));
     memset(boot_task, 0, sizeof(struct task));
 
     if (preempt) {
@@ -256,7 +258,8 @@ void go(uint32_t preempt) {
         tss_set_stack(cpu->tss, (void*)current_task->stack_base, 3);
         tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
     }
-    ctxswtch(boot_task, current_task, boot_task->fxsave_region, current_task->fxsave_region);
+    //ctxswtch(boot_task, current_task, boot_task->fxsave_region, current_task->fxsave_region);
+    newctxswtch(boot_task->context, current_task->context);
 }
 
 char * get_current_tty() {
@@ -332,6 +335,48 @@ void add_signal(int16_t pid, int signal, void * data, uint64_t size) {
     unlock_scheduler();
 }
 
+void initialize_context(struct task* task, void * init_function) {
+    task->context = kmalloc(sizeof(struct cpu_context));
+    memset(task->context, 0, sizeof(struct cpu_context));
+    task->context->cr3 = (uint64_t)task->pd;
+    task->context->info = kmalloc(sizeof(struct cpu_context_info));
+    memset(task->context->info, 0, sizeof(struct cpu_context_info));
+    task->context->info->stack = task->stack_top;
+    task->context->info->cs = task->cs;
+    task->context->info->ss = task->ds;
+    task->context->info->thread = 0;
+    task->context->rax = 0;
+    task->context->rbx = 0;
+    task->context->rcx = 0;
+    task->context->rdx = 0;
+    task->context->rsi = 0;
+    task->context->rdi = 0;
+    task->context->rbp = 0;
+    task->context->r8 = 0;
+    task->context->r9 = 0;
+    task->context->r10 = 0;
+    task->context->r11 = 0;
+    task->context->r12 = 0;
+    task->context->r13 = 0;
+    task->context->r14 = 0;
+    task->context->r15 = 0;
+    task->context->interrupt_number = 0;
+    task->context->error_code = 0;
+    task->context->rip = (uint64_t)init_function;
+    task->context->cs = task->cs;
+    task->context->rflags = 0x202;
+    task->context->rsp = task->stack_top;
+    task->context->ss = task->ds;
+
+    __asm__ volatile("fxsave %0" : "=m" (task->fxsave_region));
+
+    if (task->privilege == KERNEL_TASK) {
+        newctxcreat(&(task->stack_top), init_function);
+    } else {
+        newuctxcreat(&(task->stack_top), init_function);
+    }
+}
+
 struct task* create_task(void * init_func, const char * tty, uint8_t privilege) {
     lock_scheduler();
 
@@ -400,9 +445,10 @@ struct task* create_task(void * init_func, const char * tty, uint8_t privilege) 
         task->pd = FROM_KERNEL_MAP(duplicate_current_pml4());
         task->stack_base = (uint64_t)kstackalloc(KERNEL_STACK_SIZE);
         task->stack_top = task->stack_base + KERNEL_STACK_SIZE;
-        ctxcreat(&(task->stack_top), init_func, task->fxsave_region);
+//        ctxcreat(&(task->stack_top), init_func, task->fxsave_region);
         task->cs = get_kernel_code_selector();
         task->ds = get_kernel_data_selector();
+        initialize_context(task, init_func);
     } else {
         task->pd = FROM_KERNEL_MAP(duplicate_current_kernel_pml4());
         create_user_heap(task, TO_KERNEL_MAP(request_page()));
@@ -410,9 +456,10 @@ struct task* create_task(void * init_func, const char * tty, uint8_t privilege) 
         task->stack_top = task->stack_base + USER_STACK_SIZE;
         task->alt_stack_base = (uint64_t)kstackalloc(KERNEL_STACK_SIZE);
         task->alt_stack_top = task->alt_stack_base + KERNEL_STACK_SIZE;
-        uctxcreat(&(task->stack_top), init_func, task->fxsave_region);
+//        uctxcreat(&(task->stack_top), init_func, task->fxsave_region);
         task->cs = get_user_code_selector();
         task->ds = get_user_data_selector();
+        initialize_context(task, init_func);
     }
 
     strncpy(task->tty, tty, strlen(tty));

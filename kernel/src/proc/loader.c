@@ -218,7 +218,7 @@ void allocate_segment(struct task * task, Elf64_Phdr * program_header, void * bu
 
     uint8_t perms = PAGE_USER_BIT;
     if (program_header->p_flags & PF_W) perms |= PAGE_WRITE_BIT;
-    if (program_header->p_flags & PF_X) perms |= PAGE_NX_BIT;
+    if (!(program_header->p_flags & PF_X)) perms |= PAGE_NX_BIT;
 
     void * complete_buffer = kmalloc(page_no * 0x1000);
     memset(complete_buffer, 0, page_no * 0x1000);
@@ -291,8 +291,17 @@ uint8_t elf_load_elf(uint8_t * buffer, uint64_t size, void* env) {
                     printf("Entry point not present\n");
                     return 0;
                 }
-                
-                
+
+                if (!is_user_access(TO_KERNEL_MAP(task->pd), (void*)elf_header->e_entry)) {
+                    printf("Entry point not user accessible\n");
+                    return 0;
+                }
+
+                if (!is_executable(TO_KERNEL_MAP(task->pd), (void*)elf_header->e_entry)) {
+                    printf("Entry point not executable\n");
+                    return 0;
+                }
+
                 add_task(task);
 
                 return 1;

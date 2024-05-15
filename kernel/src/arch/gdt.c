@@ -47,6 +47,41 @@ tss_entry_t gdt_tss_entry(uintptr_t tss_address) {
     };
 }
 
+void dump_gdt_entry(gdt_entry_t* entry) {
+    printf("  GDT Entry: 0x%08x\n", *(uint32_t*) entry);
+    printf("  Base: 0x%08x\n", entry->base_low | (entry->base_middle << 16) | (entry->base_high << 24));
+    printf("  Limit: 0x%08x\n", entry->limit_low | (entry->limit_middle << 16));
+    printf("  Flags: 0x%02x\n", entry->flags);
+    printf("  Granularity: 0x%02x\n", entry->granularity);
+}
+
+void dump_tss_entry(tss_entry_t* entry) {
+    printf("  TSS Entry: 0x%08x\n", *(uint32_t*) entry);
+    printf("  Base: 0x%08x\n", entry->base_low | (entry->base_middle << 16) | (entry->base_high << 24));
+    printf("  Limit: 0x%08x\n", entry->length);
+    printf("  Flags1: 0x%02x\n", entry->flags1);
+    printf("  Flags2: 0x%02x\n", entry->flags2);
+    printf("  Base Upper: 0x%08x\n", entry->base_upper);
+    printf("  Reserved: 0x%08x\n", entry->reserved);
+}
+
+void dump_gdt(gdt_t* gdt) {
+    printf("Null Entry:\n");
+    dump_gdt_entry(&gdt->entries[GDT_NULL_ENTRY]);
+    printf("Kernel Code Entry:\n");
+    dump_gdt_entry(&gdt->entries[GDT_KERNEL_CODE_ENTRY]);
+    printf("Kernel Data Entry:\n");
+    dump_gdt_entry(&gdt->entries[GDT_KERNEL_DATA_ENTRY]);
+    printf("Null Entry 2:\n");
+    dump_gdt_entry(&gdt->entries[GDT_NULL_ENTRY_2]);
+    printf("User Data Entry:\n");
+    dump_gdt_entry(&gdt->entries[GDT_USER_DATA_ENTRY]);
+    printf("User Code Entry:\n");
+    dump_gdt_entry(&gdt->entries[GDT_USER_CODE_ENTRY]);
+    printf("TSS Entry:\n");
+    dump_tss_entry(&gdt->tss);
+}
+
 void create_gdt() {
     memset(&_tss, 0, sizeof(struct tss));
     _tss.iopb = 0;
@@ -63,6 +98,9 @@ void create_gdt() {
         cgdt->entries[GDT_USER_CODE_ENTRY] = gdt_simple_entry(GDT_PRESENT | GDT_SEGMENT | GDT_READWRITE | GDT_EXECUTABLE | GDT_USER, GDT_LONG_MODE_GRANULARITY); //40
         cgdt->tss = gdt_tss_entry((uintptr_t) &_tss); //48
     }
+
+    printf("Dumping GDT for CPU 0\n");
+    dump_gdt(&gdt[0]);
 }
 
 void load_gdt(uint8_t cpu) {

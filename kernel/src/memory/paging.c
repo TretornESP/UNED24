@@ -606,3 +606,54 @@ uint8_t is_present(struct page_directory* pml4, void * address) {
     printf("pte.present: %d\n", pte.present);
     return pte.present;
 }
+
+uint8_t is_user_access(struct page_directory* pml4, void * address) {
+//Check the user bit for each level of directory also
+    struct page_map_index map;
+    address_to_map((uint64_t)address, &map);
+
+    struct page_directory_entry pde;
+    struct page_directory *pd;
+
+    pde = pml4->entries[map.PDP_i];
+    if (!pde.user_access) {
+        printf("PDP not user accessible\n");
+        return 0;
+    }
+    pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+    pde = pd->entries[map.PD_i];
+    if (!pde.user_access) {
+        printf("PD not user accessible\n");
+        return 0;
+    }
+    pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+    pde = pd->entries[map.PT_i];
+    if (!pde.user_access) {
+        printf("PT not user accessible\n");
+        return 0;
+    }
+
+    struct page_table *pt = (struct page_table*)((uint64_t)pde.page_ppn << 12);
+    struct page_table_entry pte = pt->entries[map.P_i];
+    printf("pte.user_access: %d\n", pte.user_access);
+    return pte.user_access;
+}
+
+uint8_t is_executable(struct page_directory* pml4, void * address) {
+    struct page_map_index map;
+    address_to_map((uint64_t)address, &map);
+
+    struct page_directory_entry pde;
+    struct page_directory *pd;
+
+    pde = pml4->entries[map.PDP_i];
+    pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+    pde = pd->entries[map.PD_i];
+    pd = (struct page_directory*)((uint64_t)pde.page_ppn << 12);
+    pde = pd->entries[map.PT_i];
+    
+    struct page_table *pt = (struct page_table*)((uint64_t)pde.page_ppn << 12);
+    struct page_table_entry pte = pt->entries[map.P_i];
+    printf("pte.execution_disabled: %d\n", pte.execution_disabled);
+    return !pte.execution_disabled;
+}

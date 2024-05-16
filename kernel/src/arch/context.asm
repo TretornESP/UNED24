@@ -52,17 +52,17 @@ newctxswtch:
     save(17,rax)
     save(18,rax)
     pop rax
-    save(19,rax)
+    save(19,rax) ; Return address
     push rax
     mov rax, cs
-    save(20,rax)
+    save(20,rax) ;cs
     pushfq
     pop rax
-    save(21,rax)
+    save(21,rax) ; rflags
     mov rax, rsp
-    save(22,rax)
+    save(22,rax) ; rsp
     mov rax, ss
-    save(23,rax)
+    save(23,rax) ; ss
 
     fxsave [rdx]
 
@@ -83,16 +83,14 @@ newctxswtch:
     load(14, r13)
     load(15, r14)
     load(16, r15)
-    load(18, rax)
-    push rax ; return address
-    load(19, rax)
-    mov cs, ax
-    load(20, rax)
+    load(19, rax) ; rip
+    push rax 
+    load(20, rax) ; cs
+    load(21, rax) ; rflags
     push rax
     popfq
-    load(21, rsp)
-    load(22, rax)
-    mov ss, ax
+    load(22, rsp) ; rsp
+    load(23, rax) ; ss
     load(2, rax)
     load(7, rdi)
     load(6, rsi)
@@ -306,14 +304,13 @@ uctxcreat:
 newctxcreat:
     push rbx
     mov rbx, rsp
-    mov rsp, [rdi]
+    mov rsp, QWORD [rdi]
+    
     push returnoexit
     push 0x0
     push rsi
-    mov rsi, rsp
-    add rsi, 0x8
-    push rsi
-    mov [rdi], rsp
+
+    mov QWORD [rdi], rsp
     mov rsp, rbx
     pop rbx
     ret
@@ -324,14 +321,13 @@ newuctxcreat:
     push rbx
     mov rbx, rsp
     mov rsp, [rdi]
+
     push returnoexit
     push 0x0
     push rsi ; Init function
     push rdi ; Stack pointer
     push userspace_trampoline
-    mov rsi, rsp
-    add rsi, 0x8
-    push rsi
+
     mov [rdi], rsp
     mov rsp, rbx
     pop rbx

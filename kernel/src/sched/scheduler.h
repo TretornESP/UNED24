@@ -51,7 +51,7 @@ extern void ctxswtch(struct task * old_task, struct task* new_task, void* fxsave
 extern void ctxcreat(void* rsp, void* intro, void* fxsave);
 extern void uctxcreat(void* rsp, void* intro, void* fxsave);
 
-extern void newctxswtch(struct cpu_context * old_task, struct cpu_context* new_task);
+extern void newctxswtch(struct cpu_context * old_task, struct cpu_context* new_task, void* fxsave, void* fxrstor);
 extern void newctxcreat(void* rsp, void* intro);
 extern void newuctxcreat(void* rsp, void* intro);
 

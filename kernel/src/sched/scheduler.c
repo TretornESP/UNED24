@@ -116,7 +116,7 @@ void __attribute__((noinline)) yield() {
         tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
     }
     //ctxswtch(prev, current_task, prev->fxsave_region, current_task->fxsave_region);
-    newctxswtch(prev->context, current_task->context);
+    newctxswtch(prev->context, current_task->context, prev->fxsave_region, current_task->fxsave_region);
 }
 
 void add_task(struct task* task) {
@@ -240,8 +240,11 @@ void go(uint32_t preempt) {
     //TODO: Implement the real version
     __asm__ volatile("cli");
     boot_task = kmalloc(sizeof(struct task));
-    boot_task->context = kmalloc(sizeof(struct cpu_context));
     memset(boot_task, 0, sizeof(struct task));
+    boot_task->context = kmalloc(sizeof(struct cpu_context));
+    memset(boot_task->context, 0, sizeof(struct cpu_context));
+    boot_task->context->info = kmalloc(sizeof(struct cpu_context_info));
+    memset(boot_task->context->info, 0, sizeof(struct cpu_context_info));
 
     if (preempt) {
         set_preeption_ticks(preempt);
@@ -250,7 +253,7 @@ void go(uint32_t preempt) {
 
     schedule();
     struct cpu * cpu = get_cpu(current_task->processor);
-    syscall_set_gs((uint64_t)cpu->ctx);
+    syscall_set_gs((uint64_t)current_task);
     if (current_task->privilege == KERNEL_TASK) {
         tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
         tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 3);
@@ -259,7 +262,7 @@ void go(uint32_t preempt) {
         tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
     }
     //ctxswtch(boot_task, current_task, boot_task->fxsave_region, current_task->fxsave_region);
-    newctxswtch(boot_task->context, current_task->context);
+    newctxswtch(boot_task->context, current_task->context, boot_task->fxsave_region, current_task->fxsave_region);
 }
 
 char * get_current_tty() {
@@ -336,6 +339,12 @@ void add_signal(int16_t pid, int signal, void * data, uint64_t size) {
 }
 
 void initialize_context(struct task* task, void * init_function) {
+    if (task->privilege == KERNEL_TASK) {
+        newctxcreat(&(task->stack_top), init_function);
+    } else {
+        newuctxcreat(&(task->stack_top), init_function);
+    }
+
     task->context = kmalloc(sizeof(struct cpu_context));
     memset(task->context, 0, sizeof(struct cpu_context));
     task->context->cr3 = (uint64_t)task->pd;
@@ -345,36 +354,32 @@ void initialize_context(struct task* task, void * init_function) {
     task->context->info->cs = task->cs;
     task->context->info->ss = task->ds;
     task->context->info->thread = 0;
-    task->context->rax = 0;
-    task->context->rbx = 0;
-    task->context->rcx = 0;
-    task->context->rdx = 0;
-    task->context->rsi = 0;
-    task->context->rdi = 0;
-    task->context->rbp = 0;
-    task->context->r8 = 0;
-    task->context->r9 = 0;
-    task->context->r10 = 0;
-    task->context->r11 = 0;
-    task->context->r12 = 0;
-    task->context->r13 = 0;
-    task->context->r14 = 0;
-    task->context->r15 = 0;
+    task->context->rax = 2;
+    task->context->rbx = 3;
+    task->context->rcx = 4;
+    task->context->rdx = 5;
+    task->context->rsi = 6;
+    task->context->rdi = 7;
+    task->context->rbp = 8;
+    task->context->r8 = 9;
+    task->context->r9 = 10;
+    task->context->r10 = 11;
+    task->context->r11 = 12;
+    task->context->r12 = 13;
+    task->context->r13 = 14;
+    task->context->r14 = 15;
+    task->context->r15 = 16;
     task->context->interrupt_number = 0;
     task->context->error_code = 0;
     task->context->rip = (uint64_t)init_function;
     task->context->cs = task->cs;
     task->context->rflags = 0x202;
-    task->context->rsp = task->stack_top;
     task->context->ss = task->ds;
 
     __asm__ volatile("fxsave %0" : "=m" (task->fxsave_region));
 
-    if (task->privilege == KERNEL_TASK) {
-        newctxcreat(&(task->stack_top), init_function);
-    } else {
-        newuctxcreat(&(task->stack_top), init_function);
-    }
+    task->context->rsp = task->stack_top;
+
 }
 
 struct task* create_task(void * init_func, const char * tty, uint8_t privilege) {

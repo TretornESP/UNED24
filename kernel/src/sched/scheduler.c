@@ -107,13 +107,14 @@ void __attribute__((noinline)) yield() {
     current_task->last_scheduled = get_ticks_since_boot();
 
     struct cpu * cpu = get_cpu(current_task->processor);
-    syscall_set_gs((uint64_t)current_task);
     if (current_task->privilege == KERNEL_TASK) {
-        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
-        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 3);
+        syscall_set_kernel_gs((uint64_t)current_task->context);
+        tss_set_stack(cpu->tss, (void*)current_task->stack_top, 0);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_top, 3);
     } else {
-        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 3);
-        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
+        syscall_set_user_gs((uint64_t)current_task->context);
+        tss_set_stack(cpu->tss, (void*)current_task->stack_top, 3);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_top, 0);
     }
     //ctxswtch(prev, current_task, prev->fxsave_region, current_task->fxsave_region);
     newctxswtch(prev->context, current_task->context, prev->fxsave_region, current_task->fxsave_region);
@@ -253,13 +254,15 @@ void go(uint32_t preempt) {
 
     schedule();
     struct cpu * cpu = get_cpu(current_task->processor);
-    syscall_set_gs((uint64_t)current_task);
+    syscall_set_kernel_gs((uint64_t)boot_task->context);
     if (current_task->privilege == KERNEL_TASK) {
-        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 0);
-        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 3);
+        syscall_set_kernel_gs((uint64_t)current_task->context);
+        tss_set_stack(cpu->tss, (void*)current_task->stack_top, 0);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_top, 3);
     } else {
-        tss_set_stack(cpu->tss, (void*)current_task->stack_base, 3);
-        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_base, 0);
+        syscall_set_user_gs((uint64_t)current_task->context);
+        tss_set_stack(cpu->tss, (void*)current_task->stack_top, 3);
+        tss_set_stack(cpu->tss, (void*)current_task->alt_stack_top, 0);
     }
     //ctxswtch(boot_task, current_task, boot_task->fxsave_region, current_task->fxsave_region);
     newctxswtch(boot_task->context, current_task->context, boot_task->fxsave_region, current_task->fxsave_region);
@@ -350,7 +353,7 @@ void initialize_context(struct task* task, void * init_function) {
     task->context->cr3 = (uint64_t)task->pd;
     task->context->info = kmalloc(sizeof(struct cpu_context_info));
     memset(task->context->info, 0, sizeof(struct cpu_context_info));
-    task->context->info->stack = task->stack_top;
+    task->context->info->stack = (uint64_t)kstackalloc(KERNEL_STACK_SIZE) + KERNEL_STACK_SIZE; //Syscall stack
     task->context->info->cs = task->cs;
     task->context->info->ss = task->ds;
     task->context->info->thread = 0;

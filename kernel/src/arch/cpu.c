@@ -41,7 +41,7 @@ void init_cpus() {
     setGsBase((uint64_t) cpu->ctx);
 
     load_gdt(BSP_CPU);
-    syscall_enable();
+    syscall_enable(GDT_KERNEL_CODE_ENTRY * sizeof(gdt_entry_t), GDT_USER_CODE_ENTRY * sizeof(gdt_entry_t));
     load_interrupts_for_local_cpu();
     cpu->ready = 1;
 }

@@ -7,11 +7,11 @@ _start:
     mov rax, 1
     mov rdi, 1
     mov rsi, msg
-    mov rdx, 13
+    mov rdx, 15
     syscall
 loop:
-    jmp loop
+    jmp _start
 
 section .data
 msg:
-    db "Hello, world!", 10
+    db "Hello, world!", 13, 10, 0

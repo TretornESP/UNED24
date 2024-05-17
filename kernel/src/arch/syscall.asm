@@ -3,7 +3,44 @@
 ALIGN 4096
 extern global_syscall_handler
 global syscall_entry
+global syscall_enable
+
+syscall_enable:
+	; setup user gdt
+	or		rsi, 0x3 ; or cs with ring 3 (userspace)
+	sub		rsi, 0x10 ; or cs with ring
+	; load segments into star msr
+	mov		rcx, 0xc0000081
+	rdmsr
+	
+	mov 	edx, edi
+	sal 	esi, 16
+	or      edx, esi
+	wrmsr
+	
+	; load handler rip into lstar msr
+	mov		rcx, 0xc0000082
+	mov		rax, syscall_entry
+	mov		rdx, rax
+	shr		rdx, 32
+	wrmsr
+
+	; setup flags for syscall
+	mov		rcx, 0xc0000084
+	rdmsr
+	or		eax, 0xfffffffe 
+	wrmsr
+
+	; enable syscall / sysret instruction
+	mov		rcx, 0xc0000080
+	rdmsr
+	or		rax, 1 ; enable syscall extension
+	wrmsr
+
+	ret
+
 syscall_entry:
+    cli
     swapgs               ; swap from USER gs to KERNEL gs
     mov [gs:0x10], rsp    ; save current stack to the local cpu structure
     mov rsp, [gs:0x8]    ; use the kernel syscall stack
@@ -14,7 +51,6 @@ syscall_entry:
     push qword [rbp + 0x10] ; ss
     push qword [gs:0x10]   ; rsp
 
-    sti
     push r11             ; saved rflags
     push qword [rbp + 0x8] ; cs
     push rcx             ; current IP
@@ -69,9 +105,8 @@ syscall_entry:
     pop    r15
 
     mov r11, [rsp + 0x20]
-    add rcx, [rsp + 0x10]
+    mov rcx, [rsp + 0x10]
 
-    cli
     mov rsp, [rsp + 0x28]
     swapgs
     o64 sysret

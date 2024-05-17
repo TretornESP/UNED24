@@ -233,17 +233,11 @@ userspace_trampoline:
     mov rsi, [rsi]
     pop rdi ; Pop init function
 
-    mov rax, (4 * 8) | 3
-    mov ds, ax
-    mov es, ax
-    mov fs, ax
-    mov gs, ax
-
-    push (4 * 8) | 3
-    push rsi
-    push 0x200
-    push (5 * 8) | 3
-    push rdi
+    push (4 * 8) | 3 ; CS
+    push rsi ; Stack pointer
+    push 0x200 ; RFLAGS
+    push (5 * 8) | 3 ; CS
+    push rdi ; Init function
     iretq
 
 ; RDI stack pointer

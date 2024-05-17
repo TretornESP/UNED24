@@ -107,11 +107,9 @@ void enable_preemption() {
 
 void sleep_ticks(uint64_t ticks) {
     uint64_t start_time = pit.timer_ticks;
-    __asm__("sti");
     while (pit.timer_ticks - start_time < ticks) {
         yield();
     }
-    __asm__("cli");
 }
 
 void sleep(uint64_t seconds) {

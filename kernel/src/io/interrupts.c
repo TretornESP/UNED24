@@ -108,11 +108,6 @@ void PitInt_Handler(struct cpu_context* ctx, uint8_t cpuid) {
     (void)ctx;
     (void)cpuid;
     tick();
-    if (requires_preemption()) {
-        yield();
-    } else if (requires_wakeup()) {
-        wakeup();
-    }
 }
 
 static void interrupt_exception_handler(struct cpu_context* ctx, uint8_t cpu_id) {
@@ -125,7 +120,7 @@ struct idtdescentry * get_idt_gate(uint8_t entry_offset) {
 }
 
 void set_idt_gate(uint64_t handler, uint8_t entry_offset, uint8_t type_attr, uint8_t ist, uint16_t selector) {
-    struct idtdescentry* interrupt = (struct idtdescentry*)(TO_KERNEL_MAP(idtr.offset + (entry_offset * sizeof(struct idtdescentry))));
+    struct idtdescentry* interrupt = (struct idtdescentry*)(idtr.offset + (entry_offset * sizeof(struct idtdescentry)));
     set_offset(FROM_KERNEL_MAP(interrupt), handler);
     interrupt->type_attr.raw = type_attr;
     interrupt->selector = selector;
@@ -164,14 +159,17 @@ void init_interrupts() {
     __asm__("cli");
     
     idtr.limit = 256 * sizeof(struct idtdescentry) - 1;
-    idtr.offset = (uint64_t)request_page();
-    memset((void*)TO_KERNEL_MAP(idtr.offset), 0, 256 * sizeof(struct idtdescentry));
+    idtr.offset = (uint64_t)TO_KERNEL_MAP(request_page());
+    memset((void*)idtr.offset, 0, 256 * sizeof(struct idtdescentry));
+    mprotect_current((void*)idtr.offset, 256 * sizeof(struct idtdescentry), PAGE_USER_BIT | PAGE_WRITE_BIT);
     
     for (int i = 0; i < 256; i++) {
         set_idt_gate((uint64_t)interrupt_vector[i], i, IDT_TA_InterruptGate, 0, get_kernel_code_selector());
     }
 
     set_idt_gate((uint64_t)DoubleFault_Handler, 8, IDT_TA_InterruptGate, 1, get_kernel_code_selector());
+    
+    mprotect_current((void*)idtr.offset, 256 * sizeof(struct idtdescentry), PAGE_USER_BIT);
 
     for (int i = 0; i < 32; i++) {
         dynamic_interrupt_handlers[i] = interrupt_exception_handler;
@@ -197,7 +195,6 @@ void raise_interrupt(uint8_t interrupt) {
 }
 
 void global_interrupt_handler(struct cpu_context* ctx, uint8_t cpu_id) {
-    __asm__("cli");
     void (*handler)(struct cpu_context* ctx, uint8_t cpu_id) = (void*)dynamic_interrupt_handlers[ctx->interrupt_number];
     
     if (ctx->interrupt_number == DYNAMIC_HANDLER) {
@@ -219,5 +216,11 @@ void global_interrupt_handler(struct cpu_context* ctx, uint8_t cpu_id) {
     handler(ctx, cpu_id);
 
     pic_eoi(ctx->interrupt_number);
-    __asm__("sti");
+
+    if (requires_preemption()) {
+        yield();
+    } else if (requires_wakeup()) {
+        wakeup();
+    }
+
 }

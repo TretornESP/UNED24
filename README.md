@@ -70,3 +70,15 @@ Este curso pretende introducir al alumno en el desarrollo de sistemas operativos
 - Continúa con el siguiente tema y repite el proceso.
 
 Nota: Las sesiones grabadas y las clases no se corresponden directamente con los temas. Las clases son una guía para el estudio de los temas.
+
+
+
+## RISC-V
+### Requirements Installed
+Toolchain para baremetal: sudo apt install gcc-riscv64-unknown-elf
+QEMU RISC-V: sudo apt install qemu-system-misc
+### Especificaciones
+https://wiki.riscv.org/display/HOME/RISC-V+Technical+Specifications
+### Virt
+Direcciones de memoria de los periféricos: https://gitlab.com/qemu-project/qemu/-/blob/master/hw/riscv/virt.c#L70
+Ejemplo usando virt: https://github.com/DonaldKellett/marvelos/tree/main

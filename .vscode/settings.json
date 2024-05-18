@@ -7,6 +7,8 @@
         "heap.h": "c",
         "process.h": "c",
         "cpu.h": "c",
-        "memory.h": "c"
+        "memory.h": "c",
+        "interrupts.h": "c",
+        "simd.h": "c"
     }
 }
